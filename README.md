@@ -93,6 +93,36 @@ If neither is set, construction raises `AuthenticationError`.
 
 Obtain the site token once when registering a site in the LIME owner portal. Store it as a server-side secret.
 
+## Production deployment
+
+For high-traffic site backends, reuse one `LimeSite` for the entire process lifetime. Do not create a new client per HTTP request — that closes the underlying `httpx` connection pool on every `aclose()`.
+
+- Create **one** `LimeSite` at application startup.
+- Optionally pass a shared `httpx.AsyncClient` via `http_client` for connection pooling and custom TLS/proxy settings.
+- Set `wait_for_login(..., timeout=310.0)` to align with nginx `proxy_read_timeout` on `GET /modules/agent-login/events` (310s on production).
+
+```python
+import httpx
+from lime_sites import LimeSite
+
+# Created once at application startup
+http_client = httpx.AsyncClient(timeout=310.0)
+site = LimeSite(http_client=http_client)
+
+# Reused in every handler
+async def handle_login() -> str:
+    req = await site.create_login_request()
+    login = await site.wait_for_login(req.request_id, timeout=310.0)
+    verified = await site.verify_passport(
+        login.agent_passport_jwt,
+        expected_request_id=req.request_id,
+    )
+    assert verified.valid
+    return login.agent_passport_jwt
+```
+
+Call `site.aclose()` (or close the injected `http_client`) only on process shutdown.
+
 ## Configuration
 
 | Variable | Purpose |
@@ -172,7 +202,16 @@ pytest --cov=lime_sites --cov-fail-under=100
 Live integration (requires tokens):
 
 ```bash
+pip install lime-agents-sdk lime-sites-sdk
 LIME_INTEGRATION=1 pytest tests/integration -v
+```
+
+**Full cycle (both SDKs):** `tests/integration/test_full_cycle_both_sdks.py` — site create → agent approve → SSE passport → JWKS verify → agent profile. Uses prod fixtures on `lime.pics` or `LIME_SITE_TOKEN` / `LIME_AGENT_TOKEN` from env / `.tokens.env`.
+
+SSE is sensitive to proxy timeouts from some networks. Run from the production VPS via the LIME monorepo:
+
+```bash
+python scripts/_run_both_sdks_integration_remote.py
 ```
 
 ## License
