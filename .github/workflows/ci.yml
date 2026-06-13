@@ -34,7 +34,12 @@ jobs:
         run: mypy src/lime_sites
 
       - name: Pytest (100% coverage)
+        if: matrix.python-version == '3.12'
         run: pytest --cov=lime_sites --cov-fail-under=100
+
+      - name: Pytest
+        if: matrix.python-version != '3.12'
+        run: pytest
 
   publish:
     needs: quality
