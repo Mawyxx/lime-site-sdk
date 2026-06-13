@@ -214,3 +214,14 @@ async def test_on_login_decorator_registers_handler() -> None:
 
     assert handler in site._handlers  # noqa: SLF001
     await site.aclose()
+
+
+@pytest.mark.asyncio
+async def test_aenter_aexit_explicit() -> None:
+    site = LimeSite(
+        site_token="st_x",
+        base_url="http://mock/api/v1",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(404))),
+    )
+    assert await site.__aenter__() is site
+    await site.__aexit__(None, None, None)
