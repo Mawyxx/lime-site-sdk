@@ -148,6 +148,17 @@ def test_missing_token_raises() -> None:
 @pytest.mark.asyncio
 async def test_construct_without_loop_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LIME_SITE_TOKEN", "st_x")
+
+    def no_loop() -> asyncio.AbstractEventLoop:
+        raise RuntimeError("no running event loop")
+
+    monkeypatch.setattr(asyncio, "get_running_loop", no_loop)
+    with pytest.raises(RuntimeError, match="running asyncio event loop"):
+        LimeSite(site_token="st_x", base_url="http://mock/api/v1")
+
+
+@pytest.mark.asyncio
+async def test_construct_without_loop_from_thread() -> None:
     import concurrent.futures
 
     def sync_construct() -> None:
