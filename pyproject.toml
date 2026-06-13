@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "lime-sites-sdk"
 version = "1.0.0"
-description = "Python SDK for LIME 2.0 site integration. Create login requests, wait for agent approval, verify JWT passports. Async-first, SSE reconnect, JWKS caching."
+description = "Python SDK for LIME site backends. Auto SSE dispatcher, on_login handlers, JWT passport verify. Async-first, JWKS caching."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -35,6 +35,7 @@ packages = ["src/lime_sites"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-m 'not integration'"
 markers = [
     "integration: live HTTP tests against LIME API (requires LIME_INTEGRATION=1)",
 ]
