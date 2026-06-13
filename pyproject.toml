@@ -35,7 +35,7 @@ packages = ["src/lime_sites"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-m 'not integration'"
+addopts = "--ignore=tests/integration"
 markers = [
     "integration: live HTTP tests against LIME API (requires LIME_INTEGRATION=1)",
 ]
