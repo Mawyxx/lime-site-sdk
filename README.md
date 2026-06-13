@@ -3,11 +3,11 @@
 [![PyPI version](https://img.shields.io/pypi/v/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![Python versions](https://img.shields.io/pypi/pyversions/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/Mawyxx/lime-sait-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Mawyxx/lime-sait-sdk/actions/workflows/ci.yml)
+[![CI](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml)
 
 Official Python SDK for [LIME](https://lime.pics) site backends. Async-first client: create login requests, wait for agent approval over SSE (with reconnect), verify JWT passports via JWKS.
 
-> **Repository:** [lime-sait-sdk](https://github.com/Mawyxx/lime-sait-sdk) · **PyPI:** `lime-sites-sdk` · **Import:** `from lime_sites import LimeSite`
+> **Repository:** [lime-site-sdk](https://github.com/Mawyxx/lime-site-sdk) · **PyPI:** `lime-sites-sdk` · **Import:** `from lime_sites import LimeSite`
 
 Pair with [lime-agents-sdk](https://github.com/Mawyxx/lime-agents-sdk) on the agent worker side.
 
@@ -20,7 +20,7 @@ pip install lime-sites-sdk
 Install the latest commit from GitHub:
 
 ```bash
-pip install git+https://github.com/Mawyxx/lime-sait-sdk.git
+pip install git+https://github.com/Mawyxx/lime-site-sdk.git
 ```
 
 **Requirements:** Python 3.10+
