@@ -1,21 +1,26 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from types import TracebackType
 
 import httpx
 
 from lime_sites._client import LimeSiteClient
+from lime_sites._dispatcher import LoginHandler, SiteEventDispatcher
 from lime_sites._errors import AuthenticationError
 from lime_sites._jwks import verify_jwt
-from lime_sites._sse import listen_for_events
-from lime_sites._types import LoginRequestResult, LoginResult, PassportVerificationResult
+from lime_sites._types import LoginRequestResult, PassportVerificationResult
 
 _DEFAULT_BASE_URL = "https://lime.pics/api/v1"
+_LOOP_REQUIRED_MSG = (
+    "LimeSite must be constructed inside a running asyncio event loop "
+    "(e.g. FastAPI lifespan or asyncio.run). Register on_login handlers for SSE delivery."
+)
 
 
 class LimeSite:
-    """Async client for LIME site backends."""
+    """Async client for LIME site backends with auto-started SSE event dispatcher."""
 
     def __init__(
         self,
@@ -34,12 +39,16 @@ class LimeSite:
             )
 
         resolved_base = (
-            base_url
-            or os.getenv("LIME_API_BASE")
-            or _DEFAULT_BASE_URL
+            base_url or os.getenv("LIME_API_BASE") or _DEFAULT_BASE_URL
         ).rstrip("/")
 
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError as exc:
+            raise RuntimeError(_LOOP_REQUIRED_MSG) from exc
+
         self._sse_backoff_base = sse_backoff_base
+        self._handlers: list[LoginHandler] = []
         self._client = LimeSiteClient(
             site_token=resolved_token,
             base_url=resolved_base,
@@ -47,6 +56,16 @@ class LimeSite:
             max_retries=max_retries,
             http_client=http_client,
         )
+        self._dispatcher = SiteEventDispatcher(
+            self._client,
+            self._handlers,
+            backoff_base=sse_backoff_base,
+        )
+        self._dispatcher_task = loop.create_task(
+            self._dispatcher.run(),
+            name="lime_sites_event_dispatcher",
+        )
+        self._dispatcher.attach_run_task(self._dispatcher_task)
 
     async def __aenter__(self) -> LimeSite:
         return self
@@ -59,27 +78,19 @@ class LimeSite:
     ) -> None:
         await self.aclose()
 
+    def on_login(self, handler: LoginHandler) -> LoginHandler:
+        """Register a handler for site-login SSE events (approved or expired)."""
+        self._handlers.append(handler)
+        return handler
+
     async def aclose(self) -> None:
+        await self._dispatcher.stop()
         await self._client.aclose()
 
     async def create_login_request(self) -> LoginRequestResult:
         """Create a PENDING site-login request."""
         data = await self._client.post("/modules/agent-login/requests", {})
         return LoginRequestResult.from_api(data)
-
-    async def wait_for_login(
-        self,
-        request_id: str,
-        *,
-        timeout: float = 120.0,
-    ) -> LoginResult:
-        """Wait for agent approval on the site-login SSE stream."""
-        return await listen_for_events(
-            self._client,
-            request_id,
-            timeout=timeout,
-            backoff_base=self._sse_backoff_base,
-        )
 
     async def verify_passport(
         self,

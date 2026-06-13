@@ -7,12 +7,11 @@ from lime_sites._errors import (
     LimeError,
     RateLimitError,
     RequestExpiredError,
-    TimeoutError,
 )
 from lime_sites._site import LimeSite
 from lime_sites._types import LoginRequestResult, LoginResult, PassportVerificationResult
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "ApiError",
@@ -25,6 +24,5 @@ __all__ = [
     "PassportVerificationResult",
     "RateLimitError",
     "RequestExpiredError",
-    "TimeoutError",
     "__version__",
 ]

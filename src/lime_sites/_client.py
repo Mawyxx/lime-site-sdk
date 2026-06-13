@@ -72,6 +72,7 @@ class LimeSiteClient:
         *,
         authenticated: bool = True,
         extra_headers: dict[str, str] | None = None,
+        timeout: httpx.Timeout | float | None = None,
     ) -> AsyncIterator[httpx.Response]:
         url = f"{self._base_url}/{path.lstrip('/')}"
         headers: dict[str, str] = {"Accept": "text/event-stream"}
@@ -80,7 +81,12 @@ class LimeSiteClient:
         if extra_headers:
             headers.update(extra_headers)
         logger.debug("STREAM GET %s", url)
-        async with self._client.stream("GET", url, headers=headers) as response:
+        async with self._client.stream(
+            "GET",
+            url,
+            headers=headers,
+            timeout=timeout,
+        ) as response:
             yield response
 
     async def _request(

@@ -1,80 +1,35 @@
+"""SSE frame parsing for site-login event stream."""
+
 from __future__ import annotations
 
-import asyncio
 import json
-import logging
-import time
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
-from lime_sites._client import LimeSiteClient
-from lime_sites._errors import ApiError, RequestExpiredError, TimeoutError
-from lime_sites._types import LoginResult
-
-logger = logging.getLogger("lime")
+from lime_sites._errors import ApiError
 
 _SSE_PATH = "/modules/agent-login/events"
 
 
-async def listen_for_events(
-    client: LimeSiteClient,
-    request_id: str,
-    *,
-    timeout: float = 120.0,
-    backoff_base: float = 0.5,
-) -> LoginResult:
-    """Listen on site-login SSE until approved, expired, or timeout."""
-    deadline = time.monotonic() + timeout
-    backoff = backoff_base
-    buffer = ""
-
-    while time.monotonic() < deadline:
-        if _remaining(deadline) <= 0:
-            break
-
-        try:
-            async with client.stream(_SSE_PATH) as response:
-                if response.status_code >= 400:
-                    body = await response.aread()
-                    raise ApiError(
-                        "SSE_HTTP_ERROR",
-                        f"SSE stream failed (HTTP {response.status_code})",
-                        http_status=response.status_code,
-                        detail={"body": body.decode(errors="replace")[:200]},
-                    )
-
-                async for chunk in response.aiter_text():
-                    buffer += chunk
-                    while "\n" in buffer:
-                        line, buffer = buffer.split("\n", 1)
-                        line = line.rstrip("\r")
-                        if not line.startswith("data:"):
-                            continue
-                        payload_raw = line[5:].lstrip()
-                        if not payload_raw:
-                            continue
-                        result = _handle_frame(payload_raw, request_id)
-                        if result is not None:
-                            return result
-        except (ApiError, RequestExpiredError):
-            raise
-        except Exception as exc:
-            logger.warning("SSE connection dropped: %s", exc)
-
-        if _remaining(deadline) <= 0:
-            break
-
-        sleep_for = min(backoff, _remaining(deadline))
-        logger.debug("SSE reconnect in %.2fs", sleep_for)
-        await _sleep(sleep_for)
-        backoff = min(backoff * 2, 8.0)
-
-    raise TimeoutError(
-        f"Timed out waiting for login approval after {timeout:.0f}s",
-        code="LOGIN_WAIT_TIMEOUT",
-    )
+class SseFrameKind(str, Enum):
+    KEEPALIVE = "keepalive"
+    APPROVED = "approved"
+    EXPIRED = "expired"
+    ERROR = "error"
+    IGNORE = "ignore"
 
 
-def _handle_frame(payload_raw: str, request_id: str) -> LoginResult | None:
+@dataclass(frozen=True, slots=True)
+class SseDispatchEvent:
+    kind: SseFrameKind
+    request_id: str | None = None
+    passport: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+def parse_sse_json_payload(payload_raw: str) -> dict[str, Any]:
     try:
         payload: dict[str, Any] = json.loads(payload_raw)
     except json.JSONDecodeError as exc:
@@ -86,45 +41,56 @@ def _handle_frame(payload_raw: str, request_id: str) -> LoginResult | None:
 
     if not isinstance(payload, dict):
         raise ApiError("SSE_INVALID_FRAME", "SSE frame must be a JSON object", http_status=200)
+    return payload
 
+
+def classify_sse_payload(payload: dict[str, Any]) -> SseDispatchEvent:
     frame_type = str(payload.get("type", ""))
 
     if frame_type == "keepalive":
-        return None
+        return SseDispatchEvent(kind=SseFrameKind.KEEPALIVE)
 
     if frame_type == "error":
-        raise ApiError(
-            str(payload.get("code", "SSE_ERROR")),
-            str(payload.get("message", "SSE error frame")),
-            http_status=200,
+        return SseDispatchEvent(
+            kind=SseFrameKind.ERROR,
+            error_code=str(payload.get("code", "SSE_ERROR")),
+            error_message=str(payload.get("message", "SSE error frame")),
         )
 
-    event_id = str(payload.get("login_request_id", ""))
-    if event_id != request_id:
-        return None
+    request_id = str(payload.get("login_request_id", "")).strip()
+    if not request_id:
+        return SseDispatchEvent(kind=SseFrameKind.IGNORE)
 
     if frame_type == "expired":
-        raise RequestExpiredError(
-            f"Login request {request_id} expired",
-            code="SITE_LOGIN_REQUEST_EXPIRED",
-        )
+        return SseDispatchEvent(kind=SseFrameKind.EXPIRED, request_id=request_id, passport=None)
 
     if frame_type == "approved":
-        try:
-            return LoginResult.from_sse(payload)
-        except ValueError as exc:
+        jwt = payload.get("agent_passport_jwt")
+        if not jwt or not str(jwt).strip():
             raise ApiError(
                 "SSE_APPROVED_INVALID",
-                str(exc),
+                "approved event missing agent_passport_jwt",
                 http_status=200,
-            ) from exc
+            )
+        return SseDispatchEvent(
+            kind=SseFrameKind.APPROVED,
+            request_id=request_id,
+            passport=str(jwt),
+        )
 
-    return None
+    return SseDispatchEvent(kind=SseFrameKind.IGNORE)
 
 
-def _remaining(deadline: float) -> float:
-    return deadline - time.monotonic()
-
-
-async def _sleep(seconds: float) -> None:
-    await asyncio.sleep(seconds)
+def iter_sse_data_payloads(buffer: str, chunk: str) -> tuple[str, list[str]]:
+    """Append chunk to buffer; return updated buffer and complete data payloads."""
+    buffer += chunk
+    payloads: list[str] = []
+    while "\n" in buffer:
+        line, buffer = buffer.split("\n", 1)
+        line = line.rstrip("\r")
+        if not line.startswith("data:"):
+            continue
+        payload_raw = line[5:].lstrip()
+        if payload_raw:
+            payloads.append(payload_raw)
+    return buffer, payloads

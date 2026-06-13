@@ -1,9 +1,10 @@
-"""Live integration: site SDK create/wait/verify + lime-agents-sdk approve."""
+"""Live integration: site SDK create + dispatcher + lime-agents-sdk approve."""
 
 from __future__ import annotations
 
 import asyncio
 import os
+from typing import Any
 
 import pytest
 
@@ -36,7 +37,16 @@ async def test_full_cycle_create_wait_verify(site_token: str, agent_token: str) 
     lime_agents = pytest.importorskip("lime_agents")
     LimeAgent = lime_agents.LimeAgent
 
+    received = asyncio.Event()
+    box: dict[str, Any] = {}
+
     async with LimeSite(site_token=site_token, base_url=BASE_URL) as site:
+        @site.on_login
+        async def on_login(request_id: str, passport: str | None) -> None:
+            box["request_id"] = request_id
+            box["passport"] = passport
+            received.set()
+
         req = await site.create_login_request()
         assert req.request_id.strip()
         assert req.status == "PENDING"
@@ -48,11 +58,11 @@ async def test_full_cycle_create_wait_verify(site_token: str, agent_token: str) 
 
         approve_task = asyncio.create_task(approve_in_background())
         try:
-            login = await site.wait_for_login(req.request_id, timeout=120.0)
-            assert login.agent_passport_jwt.strip()
+            await asyncio.wait_for(received.wait(), timeout=120.0)
+            assert box["passport"] and str(box["passport"]).strip()
 
             verified = await site.verify_passport(
-                login.agent_passport_jwt,
+                box["passport"],
                 expected_request_id=req.request_id,
             )
             assert verified.valid is True

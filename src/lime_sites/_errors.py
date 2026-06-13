@@ -56,5 +56,3 @@ class ApiError(LimeError):
         )
 
 
-class TimeoutError(LimeError):
-    """wait_for_login exceeded the allotted time without a terminal event."""
