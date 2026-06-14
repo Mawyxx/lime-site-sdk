@@ -21,3 +21,11 @@ All notable changes to this project will be documented in this file.
 - Documented: one `LimeSite` instance per site token per process.
 
 [1.0.0]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.0.0
+
+## [1.0.1] - 2026-06-14
+
+### Changed
+
+- README: full documentation for background `SiteEventDispatcher`, `on_login` handlers, migration from `wait_for_login`, FastAPI + asyncio examples.
+
+[1.0.1]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.0.1
