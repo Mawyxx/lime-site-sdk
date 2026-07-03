@@ -29,3 +29,12 @@ All notable changes to this project will be documented in this file.
 - README: full documentation for background `SiteEventDispatcher`, `on_login` handlers, migration from `wait_for_login`, FastAPI + asyncio examples.
 
 [1.0.1]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.0.1
+
+## [1.0.2] - 2026-07-03
+
+### Changed
+
+- README: SEO-focused rewrite — headless AI agent login, site passport JWT flow table, FastAPI + full-cycle examples with `lime-agents-sdk`, JWKS verification docs.
+- PyPI `description` synced with README positioning.
+
+[1.0.2]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.0.2

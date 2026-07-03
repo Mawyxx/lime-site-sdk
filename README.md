@@ -1,15 +1,48 @@
-# LIME Sites SDK
+# lime-sites-sdk — Accept AI Agents on Your Site (JWT + JWKS)
+
+**`lime-sites-sdk`** is the official **Python site SDK** for [LIME](https://lime.pics) — **headless AI agent login** for backends that want to accept autonomous agents without browsers, OAuth redirects, or QR codes. Create a login request, receive a signed **agent passport JWT** over **SSE events**, and **verify** it offline with **JWKS** (`aud=lime-site-login`) — all with `X-Site-Token` and a small async API.
+
+Use this package on **site backends** (FastAPI, Django ASGI, workers). Pair with [`lime-agents-sdk`](https://pypi.org/project/lime-agents-sdk/) on the agent worker that calls `login(request_id)`.
 
 [![PyPI version](https://img.shields.io/pypi/v/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![Python versions](https://img.shields.io/pypi/pyversions/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml)
+[![MCP compatible](https://img.shields.io/badge/MCP-compatible-00C853)](https://modelcontextprotocol.io/)
 
-Official Python SDK for [LIME](https://lime.pics) **site backends**. Async-first: create login requests, receive agent passports over a **background SSE dispatcher**, verify JWTs via JWKS.
+**📖 Full documentation:** [https://lime.pics/docs](https://lime.pics/docs#guide-siteSdk)  
+**🌐 Platform:** [https://lime.pics](https://lime.pics)
 
-> **Repository:** [lime-site-sdk](https://github.com/Mawyxx/lime-site-sdk) · **PyPI:** `lime-sites-sdk` · **Import:** `from lime_sites import LimeSite`
+---
 
-Pair with [lime-agents-sdk](https://github.com/Mawyxx/lime-agents-sdk) on the agent worker side.
+## Why lime-sites-sdk?
+
+| Problem | SDK solution |
+|---------|----------------|
+| Manual site login API + SSE parsing | `create_login_request()` + background **SSE dispatcher** |
+| JWKS fetch, kid cache, RS256 checks | `verify_passport()` with in-memory JWKS cache |
+| Blocking wait per HTTP request | `@site.on_login` handlers — map `request_id` → session |
+| Fragile site credentials | Env-based `LIME_SITE_TOKEN`, typed errors, `py.typed` |
+
+### Site passport JWT flow (this SDK)
+
+LIME delivers the **cryptographic passport** to the **site backend**, not to the agent worker.
+
+| Step | Who | What happens |
+|------|-----|----------------|
+| 1 | **Site** (`lime-sites-sdk`) | `create_login_request()` → `request_id` |
+| 2 | **Your app** | Hand `request_id` to the agent (queue, RPC, UI) |
+| 3 | **Agent** (`lime-agents-sdk`) | `await agent.login(request_id)` — PoW + approve |
+| 4 | **Site** (`@site.on_login`) | SSE `approved` → **passport JWT** string |
+| 5 | **Site** | `verify_passport(jwt, expected_request_id=…)` → claims → session |
+
+| Artifact | Audience | TTL (typical) | Verified by |
+|----------|----------|---------------|-------------|
+| **Site passport JWT** | Site backend (SSE) | Short-lived signed passport (`aud=lime-site-login`) | **`lime-sites-sdk`** via Core JWKS |
+
+> **Not this SDK:** MCP access JWTs (`aud=mcp`, ~5 min) are issued to **agent workers** via `lime-agents-sdk`. Sites do not receive or verify MCP tokens.
+
+---
 
 ## Installation
 
@@ -17,74 +50,36 @@ Pair with [lime-agents-sdk](https://github.com/Mawyxx/lime-agents-sdk) on the ag
 pip install lime-sites-sdk
 ```
 
-Latest from GitHub (if PyPI lags):
+Latest from GitHub:
 
 ```bash
-pip install "git+https://github.com/Mawyxx/lime-site-sdk.git@v1.0.1"
+pip install git+https://github.com/Mawyxx/lime-site-sdk.git
 ```
 
-**Requirements:** Python 3.10+
+**Requirements:** Python 3.10+ · runtime deps: `httpx`, `PyJWT`, `cryptography`
 
-## Background SSE dispatcher (v1.0+)
+---
 
-**v1.0 removed `wait_for_login()`.** Instead, `LimeSite` starts an internal **`SiteEventDispatcher`** when you construct it inside a **running asyncio loop**:
+## Quick start
 
-1. Opens perpetual `GET /modules/agent-login/events` (`text/event-stream`, `X-Site-Token`).
-2. Parses SSE frames (`approved`, `expired`, `keepalive`) with automatic reconnect and exponential backoff.
-3. On each terminal event, calls your registered **`on_login`** handlers: `(request_id, passport | None)`.
-4. Stops on `await site.aclose()` (process shutdown).
+### Scenario A — FastAPI site backend (production pattern)
 
-You map `request_id` → user session in the handler. The dispatcher delivers **all** login events for this site token — not one blocking wait per HTTP request.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Your site backend process (one LimeSite per site token)    │
-│                                                             │
-│  LimeSite()  ──► SiteEventDispatcher (background task)      │
-│       │              │                                      │
-│       │              └──► GET /agent-login/events (loop)    │
-│       │                      │ approved / expired           │
-│       ▼                      ▼                              │
-│  create_login_request()   @site.on_login handlers           │
-│       │                      │                              │
-│       └── request_id ───────► verify_passport → session     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Rules:**
-
-| Rule | Why |
-|------|-----|
-| **One `LimeSite` per site token per process** | One SSE connection per site |
-| Construct only inside running loop (`lifespan`, `asyncio.run`) | Dispatcher is `asyncio.create_task(...)` |
-| Handlers must be **fast** | They run sequentially on the dispatcher thread |
-| `passport=None` means **expired** | Clear pending login for that `request_id` |
-
-**Not public API:** no `start()` / `stop()` — lifecycle is `LimeSite()` + `aclose()`.
-
-### Migration from 0.1.0 (`wait_for_login`)
-
-| 0.1.0 | 1.0+ |
-|-------|------|
-| `site = LimeSite()` anywhere | `site = LimeSite()` inside running event loop |
-| `login = await site.wait_for_login(req.request_id)` | `@site.on_login` receives JWT when agent approves |
-| Blocking wait per request | Map `request_id` in handler to your session store |
-| `TimeoutError` | Use your own timeout on pending session state |
-
-## Quick start (FastAPI)
+**Story:** One `LimeSite` per process starts a perpetual SSE connection. When an agent approves login, your `@site.on_login` handler receives the passport JWT, verifies it, and binds claims to the user session.
 
 ```python
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from lime_sites import LimeSite
 
 site: LimeSite
+pending_logins: dict[str, object] = {}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global site
-    site = LimeSite()  # LIME_SITE_TOKEN; loop running → dispatcher starts
+    site = LimeSite()  # LIME_SITE_TOKEN; running loop → SSE dispatcher starts
 
     @site.on_login
     async def handle_login(request_id: str, passport: str | None) -> None:
@@ -95,7 +90,7 @@ async def lifespan(app: FastAPI):
             passport,
             expected_request_id=request_id,
         )
-        pending_logins[request_id] = verified.claims  # or issue session cookie
+        pending_logins[request_id] = verified.claims  # issue session / cookie
 
     yield
     await site.aclose()
@@ -103,179 +98,160 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# In-memory map: request_id → claims (use Redis/DB in production)
-pending_logins: dict[str, object] = {}
-
 
 @app.post("/login/start")
 async def start_login() -> dict[str, str]:
     req = await site.create_login_request()
-    # Pass req.request_id to agent worker (lime-agents-sdk approve + PoW)
+    # Return request_id to client; agent worker calls login(req.request_id)
     return {"request_id": req.request_id}
 ```
 
-## Minimal example (`asyncio.run`)
+**Rules:**
+
+| Rule | Why |
+|------|-----|
+| **One `LimeSite` per site token per process** | One SSE connection per site |
+| Construct inside a **running asyncio loop** | Dispatcher uses `asyncio.create_task` |
+| Keep `@site.on_login` handlers **fast** | Events are dispatched sequentially |
+| `passport is None` → **expired** | Clear pending state for that `request_id` |
+
+---
+
+### Scenario B — Minimal loop + full cycle with `lime-agents-sdk`
+
+**Story:** End-to-end headless login — site creates request, agent approves, site verifies passport JWT.
 
 ```python
 import asyncio
+
+from lime_agents import LimeAgent
 from lime_sites import LimeSite
 
-pending: dict[str, str | None] = {}
-
-
 async def main() -> None:
+    received = asyncio.Event()
+    box: dict[str, str] = {}
+
     site = LimeSite()  # must be inside async main (running loop)
 
     @site.on_login
-    async def on_login(request_id: str, passport: str | None) -> None:
-        pending[request_id] = passport
+    async def handle_login(request_id: str, passport: str | None) -> None:
+        if passport:
+            box["jwt"] = passport
+            received.set()
 
     req = await site.create_login_request()
-    # hand req.request_id to agent; after approve, pending[req.request_id] is JWT
-    await asyncio.sleep(120)  # replace with your app loop
+
+    async with LimeAgent() as agent:  # LIME_AGENT_TOKEN
+        await agent.login(req.request_id)
+
+    await asyncio.wait_for(received.wait(), timeout=120)
+
+    verified = await site.verify_passport(
+        box["jwt"],
+        expected_request_id=req.request_id,
+    )
+    print(verified.valid, verified.claims.get("agent_id"))
     await site.aclose()
 
 
 asyncio.run(main())
 ```
 
-## End-to-end with lime-agents-sdk
+**SSE dispatcher (automatic):**
 
-```python
-import asyncio
-from lime_agents import LimeAgent
-from lime_sites import LimeSite
+1. `GET /api/v1/modules/agent-login/events` (`text/event-stream`, `X-Site-Token`)
+2. Parse `approved` / `expired` / `keepalive` with reconnect + backoff
+3. Call registered handlers: `(request_id, passport | None)`
+4. Stop on `await site.aclose()`
 
-async def demo() -> None:
-    received = asyncio.Event()
-    box: dict[str, str] = {}
+---
 
-    site = LimeSite()
+## Features
 
-    @site.on_login
-    async def on_login(request_id: str, passport: str | None) -> None:
-        if passport:
-            box["jwt"] = passport
-            received.set()
+- **Headless AI agent login** — no browser, QR, or OAuth redirect on the site
+- **Background SSE dispatcher** — perpetual event stream with auto-reconnect (310s read timeout)
+- **`@site.on_login` handlers** — `approved` → JWT string; `expired` → `passport=None`
+- **JWKS passport verification** — RS256, `aud=lime-site-login`, cached keys, `kid` refresh
+- **`create_login_request()`** — `POST /modules/agent-login/requests` with `X-Site-Token`
+- **Typed results** — `LoginRequestResult`, `PassportVerificationResult`, mypy-clean public API
 
-    req = await site.create_login_request()
-    async with LimeAgent() as agent:
-        await agent.approve(req.request_id)  # agent solves PoW internally
-    await asyncio.wait_for(received.wait(), timeout=120)
-    verified = await site.verify_passport(
-        box["jwt"],
-        expected_request_id=req.request_id,
-    )
-    assert verified.valid
-    await site.aclose()
-```
+---
 
-## Handler contract
-
-| SSE `type` | `passport` arg | Your action |
-|------------|----------------|-------------|
-| `approved` | agent JWT string | `verify_passport(passport, expected_request_id=request_id)` → session |
-| `expired` | `None` | Drop pending state for `request_id` |
-| `keepalive` | (not delivered to handlers) | ignored by SDK |
-
-## Production deployment
-
-- Create **one** `LimeSite` at process startup — not per HTTP request.
-- Optional shared `httpx.AsyncClient` via `http_client` for connection pooling.
-- nginx `proxy_read_timeout` on `GET .../events` must be **≥ 310s** (LIME production default). SDK uses a dedicated **310s SSE read timeout** and reconnects on drops.
-- Call `await site.aclose()` only on shutdown.
-
-```python
-import httpx
-from lime_sites import LimeSite
-
-http_client = httpx.AsyncClient(timeout=30.0)
-site = LimeSite(http_client=http_client)
-
-@site.on_login
-async def on_login(request_id: str, passport: str | None) -> None:
-    ...
-```
-
-## Authentication
-
-Site HTTP calls use `X-Site-Token`.
-
-1. Constructor `site_token="st_..."`
-2. Else env `LIME_SITE_TOKEN`
-
-Missing token → `AuthenticationError` at construct time (before loop check).
-
-## Configuration
-
-| Variable | Purpose |
-|----------|---------|
-| `LIME_SITE_TOKEN` | Site integration token (required) |
-| `LIME_API_BASE` | API root with `/api/v1` (default `https://lime.pics/api/v1`) |
-
-## API reference
+## API reference (summary)
 
 ### `LimeSite`
 
-#### Constructor (keyword-only, **inside running asyncio loop**)
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `site_token` | `None` | Falls back to `LIME_SITE_TOKEN` |
-| `base_url` | `None` | Falls back to `LIME_API_BASE` |
-| `timeout` | `30.0` | Per HTTP request timeout (seconds) |
-| `max_retries` | `3` | Retries on 5xx / transport errors |
-| `sse_backoff_base` | `0.5` | Initial SSE reconnect backoff (seconds) |
-| `http_client` | `None` | Inject `httpx.AsyncClient` for tests / pooling |
-
-#### Methods
+Construct **inside a running asyncio loop** (e.g. FastAPI lifespan, `asyncio.run`).
 
 | Method | Description |
 |--------|-------------|
-| `on_login(handler)` | Register async handler; use as `@site.on_login` decorator |
-| `create_login_request()` | `POST /modules/agent-login/requests` → `LoginRequestResult` |
-| `verify_passport(jwt, *, expected_request_id=None)` | JWKS RS256 verify → `PassportVerificationResult` |
-| `aclose()` | Stop background dispatcher + close HTTP client |
+| `@site.on_login` / `site.on_login(handler)` | Register handler for SSE login events |
+| `await site.create_login_request()` | Start login → `LoginRequestResult` |
+| `await site.verify_passport(jwt, *, expected_request_id=None)` | JWKS RS256 verify → `PassportVerificationResult` |
+| `await site.aclose()` | Stop dispatcher + close HTTP client |
 
-Supports `async with LimeSite(...) as site:` (still requires running loop at `__aenter__`).
+**Constructor highlights:** `site_token` / `LIME_SITE_TOKEN`, `base_url` / `LIME_API_BASE` (default `https://lime.pics/api/v1`), `timeout`, `max_retries`, `sse_backoff_base`, injectable `http_client`.
 
-### Types
+### `verify_passport` checks
 
-| Type | Fields |
-|------|--------|
-| `LoginRequestResult` | `request_id`, `status`, `expires_at` |
-| `PassportVerificationResult` | `valid`, `claims` |
+- Signature valid against `GET /api/v1/core/.well-known/jwks.json`
+- `aud == "lime-site-login"`
+- `exp` / `iat` within platform TTL
+- Optional `expected_request_id` matches JWT `request_id` claim
+
+**Claims** (typical): `agent_id`, `user_id`, `user_kyc_level`, `agent_reputation`, `request_id`, `exp`, `iat`.
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LIME_SITE_TOKEN` | Yes* | Site integration token (`st_...`) from the LIME portal |
+| `LIME_API_BASE` | No | API root, e.g. `https://lime.pics/api/v1` |
+
+\*Unless `site_token=` is passed to the constructor.
 
 ### Errors
 
-| Exception | When |
-|-----------|------|
-| `AuthenticationError` | Missing/invalid site token |
-| `RequestExpiredError` | JWT / binding expired on verify |
-| `InvalidPassportError` | JWT verify failure |
-| `RateLimitError` | HTTP 429 |
-| `ApiError` | Other API errors |
-| `LimeError` | Base class |
+All inherit from `LimeError`: `AuthenticationError`, `InvalidPassportError`, `RequestExpiredError`, `RateLimitError`, `ApiError`.
 
-`RuntimeError` if `LimeSite()` is called without a running event loop.
+`RuntimeError` if `LimeSite()` is constructed without a running event loop.
 
-## Development
+---
+
+## Production notes
+
+- Create **one** `LimeSite` at worker startup — not per HTTP request.
+- nginx `proxy_read_timeout` on `GET .../events` should be **≥ 310s** (matches SDK SSE read timeout).
+- Store `request_id` → pending session in Redis/DB; complete session in `@site.on_login`.
+- Never expose `LIME_SITE_TOKEN` to frontend JavaScript — server-side only.
+
+---
+
+## Related packages
+
+| Package | Role |
+|---------|------|
+| [`lime-agents-sdk`](https://pypi.org/project/lime-agents-sdk/) | Agent worker: `login(request_id)`, MCP OAuth client |
+| [`lime-mcp-server-sdk`](https://pypi.org/project/lime-mcp-server-sdk/) | MCP resource server: verify MCP Bearer JWT (separate from site passport) |
+
+---
+
+## Contributing
+
+Issues and pull requests: [github.com/Mawyxx/lime-site-sdk](https://github.com/Mawyxx/lime-site-sdk)
 
 ```bash
+git clone https://github.com/Mawyxx/lime-site-sdk.git
+cd lime-site-sdk
 pip install -e ".[dev]"
 ruff check src tests
 mypy src/lime_sites
 pytest --cov=lime_sites --cov-fail-under=100
 ```
 
-Live integration:
+CI runs on Python 3.10–3.13 with **100% line coverage** on `src/lime_sites`.
 
-```bash
-pip install lime-agents-sdk lime-sites-sdk
-LIME_INTEGRATION=1 pytest tests/integration -v --ignore-glob='*'
-```
-
-Full cycle on production VPS (LIME monorepo): `python scripts/_run_both_sdks_integration_remote.py --runs 3`
+---
 
 ## License
 
