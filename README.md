@@ -2,7 +2,7 @@
 
 **`lime-sites-sdk`** is the official **Python site SDK** for [LIME](https://lime.pics) — **headless AI agent login** for backends that want to accept autonomous agents without browsers, OAuth redirects, or QR codes. Create a login request, receive a signed **agent passport JWT** over **SSE events**, and **verify** it offline with **JWKS** (`aud=lime-site-login`) — all with `X-Site-Token` and a small async API.
 
-Use this package on **site backends** (FastAPI, Django ASGI, workers). Pair with [`lime-agents-sdk`](https://pypi.org/project/lime-agents-sdk/) on the agent worker that calls `login(request_id)`.
+Use this package on **site backends** (FastAPI, Django ASGI, workers). Pair with [`lime-agents-sdk`](https://github.com/Mawyxx/lime-agents-sdk) on the agent worker that calls `login(request_id)`.
 
 [![PyPI version](https://img.shields.io/pypi/v/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![Python versions](https://img.shields.io/pypi/pyversions/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
@@ -10,7 +10,8 @@ Use this package on **site backends** (FastAPI, Django ASGI, workers). Pair with
 [![CI](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml)
 [![MCP compatible](https://img.shields.io/badge/MCP-compatible-00C853)](https://modelcontextprotocol.io/)
 
-**📖 Full documentation:** [https://lime.pics/docs](https://lime.pics/docs#guide-siteSdk)  
+**📖 Platform API docs:** [https://lime.pics/docs](https://lime.pics/docs#guide-siteSdk)  
+**📦 This SDK:** [github.com/Mawyxx/lime-site-sdk](https://github.com/Mawyxx/lime-site-sdk)  
 **🌐 Platform:** [https://lime.pics](https://lime.pics)
 
 ---
@@ -32,7 +33,7 @@ LIME delivers the **cryptographic passport** to the **site backend**, not to the
 |------|-----|----------------|
 | 1 | **Site** (`lime-sites-sdk`) | `create_login_request()` → `request_id` |
 | 2 | **Your app** | Hand `request_id` to the agent (queue, RPC, UI) |
-| 3 | **Agent** (`lime-agents-sdk`) | `await agent.login(request_id)` — PoW + approve |
+| 3 | **Agent** ([`lime-agents-sdk`](https://github.com/Mawyxx/lime-agents-sdk)) | `await agent.login(request_id)` — PoW + approve |
 | 4 | **Site** (`@site.on_login`) | SSE `approved` → **passport JWT** string |
 | 5 | **Site** | `verify_passport(jwt, expected_request_id=…)` → claims → session |
 
@@ -40,7 +41,7 @@ LIME delivers the **cryptographic passport** to the **site backend**, not to the
 |----------|----------|---------------|-------------|
 | **Site passport JWT** | Site backend (SSE) | Short-lived signed passport (`aud=lime-site-login`) | **`lime-sites-sdk`** via Core JWKS |
 
-> **Not this SDK:** MCP access JWTs (`aud=mcp`, ~5 min) are issued to **agent workers** via `lime-agents-sdk`. Sites do not receive or verify MCP tokens.
+> **Not this SDK:** MCP access JWTs (`aud=mcp`, ~5 min) are issued to **agent workers** via [`lime-agents-sdk`](https://github.com/Mawyxx/lime-agents-sdk). Sites do not receive or verify MCP tokens.
 
 ---
 
@@ -164,6 +165,8 @@ asyncio.run(main())
 3. Call registered handlers: `(request_id, passport | None)`
 4. Stop on `await site.aclose()`
 
+**Agent side (separate package):** [`lime-agents-sdk`](https://github.com/Mawyxx/lime-agents-sdk) → `await agent.login(request_id)` — PoW + approve.
+
 ---
 
 ## Features
@@ -231,8 +234,8 @@ All inherit from `LimeError`: `AuthenticationError`, `InvalidPassportError`, `Re
 
 | Package | Role |
 |---------|------|
-| [`lime-agents-sdk`](https://pypi.org/project/lime-agents-sdk/) | Agent worker: `login(request_id)`, MCP OAuth client |
-| [`lime-mcp-server-sdk`](https://pypi.org/project/lime-mcp-server-sdk/) | MCP resource server: verify MCP Bearer JWT (separate from site passport) |
+| [`lime-agents-sdk`](https://github.com/Mawyxx/lime-agents-sdk) | Agent worker: `login(request_id)`, MCP OAuth client |
+| [`lime-mcp-server-sdk`](https://github.com/Mawyxx/lime-mcp-server-sdk) | MCP resource server: verify MCP Bearer JWT (separate from site passport) |
 
 ---
 
