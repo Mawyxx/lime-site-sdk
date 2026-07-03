@@ -71,7 +71,7 @@ pip install git+https://github.com/Mawyxx/lime-site-sdk.git
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from lime_sites import LimeSite
+from lime_sites import InvalidPassportError, LimeSite
 
 site: LimeSite
 pending_logins: dict[str, object] = {}
@@ -80,17 +80,21 @@ pending_logins: dict[str, object] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global site
-    site = LimeSite()  # LIME_SITE_TOKEN; running loop → SSE dispatcher starts
+    site = LimeSite()  # LIME_SITE_TOKEN=st_... — server-side secret only
 
     @site.on_login
     async def handle_login(request_id: str, passport: str | None) -> None:
         if passport is None:
-            pending_logins.pop(request_id, None)  # expired
+            pending_logins.pop(request_id, None)  # expired — no JWT delivered
             return
-        verified = await site.verify_passport(
-            passport,
-            expected_request_id=request_id,
-        )
+        try:
+            verified = await site.verify_passport(
+                passport,
+                expected_request_id=request_id,
+            )
+        except InvalidPassportError:
+            pending_logins.pop(request_id, None)
+            return
         pending_logins[request_id] = verified.claims  # issue session / cookie
 
     yield
@@ -126,13 +130,13 @@ async def start_login() -> dict[str, str]:
 import asyncio
 
 from lime_agents import LimeAgent
-from lime_sites import LimeSite
+from lime_sites import InvalidPassportError, LimeSite
 
 async def main() -> None:
     received = asyncio.Event()
     box: dict[str, str] = {}
 
-    site = LimeSite()  # must be inside async main (running loop)
+    site = LimeSite()  # LIME_SITE_TOKEN — must be inside async main (running loop)
 
     @site.on_login
     async def handle_login(request_id: str, passport: str | None) -> None:
@@ -143,15 +147,22 @@ async def main() -> None:
     req = await site.create_login_request()
 
     async with LimeAgent() as agent:  # LIME_AGENT_TOKEN
-        await agent.login(req.request_id)
+        approve = await agent.login(req.request_id)
+        print(approve.status)  # APPROVED — passport JWT is delivered to site via SSE, not to agent
 
     await asyncio.wait_for(received.wait(), timeout=120)
 
-    verified = await site.verify_passport(
-        box["jwt"],
-        expected_request_id=req.request_id,
-    )
-    print(verified.valid, verified.claims.get("agent_id"))
+    try:
+        verified = await site.verify_passport(
+            box["jwt"],
+            expected_request_id=req.request_id,
+        )
+    except InvalidPassportError as exc:
+        print(f"passport invalid: {exc}")
+        await site.aclose()
+        return
+
+    print(verified.claims["agent_id"])  # verified.valid is always True on success
     await site.aclose()
 
 
