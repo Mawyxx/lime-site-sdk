@@ -11,7 +11,7 @@ from lime_sites._errors import (
 from lime_sites._site import LimeSite
 from lime_sites._types import LoginRequestResult, LoginResult, PassportVerificationResult
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 __all__ = [
     "ApiError",
