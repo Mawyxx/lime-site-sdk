@@ -1,23 +1,18 @@
 # Quick Start
 
-This SDK handles **one job**: site login on your backend. For agent-side approve, see
+Site login on **your backend**. Agent approve is
 [lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/).
 
----
+## Method order
 
-## Step-by-step (method order matters)
-
-| Step | What you do | Method |
-|------|-------------|--------|
-| 1 | Create client **inside** `asyncio.run()` or FastAPI lifespan | `site = LimeSite()` |
-| 2 | Register handler **before** creating login | `@site.on_login` |
-| 3 | Start login; send `request_id` to agent | `await site.create_login_request()` |
-| 4 | Agent approves (other SDK) | `lime-agents-sdk` → `login()` |
-| 5 | Handler receives JWT | automatic via SSE |
-| 6 | Verify JWT; open your session | `await site.verify_passport(...)` |
-| 7 | Shutdown | `await site.aclose()` |
-
----
+| Step | Method | Notes |
+|------|--------|-------|
+| 1 | `LimeSite()` | Inside running asyncio loop |
+| 2 | `@site.on_login` | Register **before** create |
+| 3 | `create_login_request()` | Send `request_id` to agent |
+| 4 | Agent `login()` | Other SDK |
+| 5 | `verify_passport()` | In handler when SSE fires |
+| 6 | `aclose()` | On shutdown |
 
 ## Full example
 
@@ -30,7 +25,7 @@ async def main() -> None:
     received = asyncio.Event()
     box: dict[str, object] = {}
 
-    site = LimeSite()  # LIME_SITE_TOKEN from env
+    site = LimeSite()
 
     @site.on_login
     async def handle_login(request_id: str, passport: str | None) -> None:
@@ -51,14 +46,12 @@ async def main() -> None:
         if verified.valid:
             agent_id = verified.claims["sub"]
             user_id = verified.claims["user_id"]
-            # → create YOUR session here (cookie, JWT, DB row)
+            # create YOUR session here
 
     await site.aclose()
 
 asyncio.run(main())
 ```
-
----
 
 ## Handler arguments
 
@@ -66,12 +59,10 @@ asyncio.run(main())
 async def handler(request_id: str, passport: str | None) -> None:
 ```
 
-| Argument | When | What to do |
-|----------|------|------------|
-| `passport` is a string | Agent approved | Call `verify_passport(passport, expected_request_id=request_id)` |
+| Argument | When | Action |
+|----------|------|--------|
+| `passport` is `str` | Agent approved | `verify_passport(passport, expected_request_id=request_id)` |
 | `passport` is `None` | Request expired | Show "try again" to user |
-
----
 
 ## FastAPI lifespan
 
@@ -91,7 +82,7 @@ async def lifespan(app: FastAPI):
             verified = await site.verify_passport(
                 passport, expected_request_id=request_id
             )
-            # store in app state, Redis, etc.
+            # store verified.claims in app state / Redis
 
     app.state.lime_site = site
     yield
@@ -99,8 +90,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 ```
-
----
 
 ## Environment variables
 
@@ -111,12 +100,9 @@ app = FastAPI(lifespan=lifespan)
 
 \*Or `site_token=` to `LimeSite()`.
 
----
-
-## Production notes
-
-- Construct `LimeSite()` only when asyncio loop is **already running**
-- SSE proxy timeout ≥ **310 seconds**
-- Handlers may fire more than once for the same `request_id` — make them idempotent
+!!! warning "Production"
+    - Create `LimeSite()` only when asyncio loop is **running**
+    - SSE proxy timeout ≥ **310 seconds**
+    - Make `@site.on_login` idempotent on `request_id`
 
 HTTP reference: [lime.pics/docs](https://lime.pics/docs)
