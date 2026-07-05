@@ -57,5 +57,18 @@ asyncio.run(main())
 
 - [Installation](installation.md)
 - [Quick Start](quickstart.md)
-- [API Reference](api.md)
+- [API Reference](api.md) — **method index + one section per method**
 - [Examples](examples.md)
+
+## API at a glance
+
+| Step | Call |
+|------|------|
+| 1. Start (inside asyncio loop) | `site = LimeSite()` |
+| 2. Register SSE handler | `@site.on_login` async def … |
+| 3. Create login | `req = await site.create_login_request()` |
+| 4. Hand off to agent | pass `req.request_id` OOB |
+| 5. In handler, verify JWT | `await site.verify_passport(jwt, expected_request_id=…)` |
+| 6. Shutdown | `await site.aclose()` |
+
+Details: [API Reference](api.md).

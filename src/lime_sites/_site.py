@@ -99,11 +99,23 @@ class LimeSite:
         await self.aclose()
 
     def on_login(self, handler: LoginHandler) -> LoginHandler:
-        """Register a handler for site-login SSE events (approved or expired)."""
+        """Register a callback for site-login SSE events.
+
+        Args:
+            handler: Async function ``(request_id, passport) -> None``.
+                ``passport`` is the JWT string on approved; ``None`` on expired.
+
+        Returns:
+            The same handler (usable as ``@site.on_login`` decorator).
+        """
         self._handlers.append(handler)
         return handler
 
     async def aclose(self) -> None:
+        """Stop the SSE dispatcher and close the HTTP client.
+
+        Call from FastAPI lifespan shutdown or before process exit.
+        """
         await self._dispatcher.stop()
         await self._client.aclose()
 

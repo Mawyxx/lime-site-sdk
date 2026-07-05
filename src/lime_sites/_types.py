@@ -11,7 +11,13 @@ def _parse_datetime(value: str) -> datetime:
 
 @dataclass(frozen=True, slots=True)
 class LoginRequestResult:
-    """Response from ``LimeSite.create_login_request()``."""
+    """Response from ``create_login_request()``.
+
+    Attributes:
+        request_id: Hand this to the agent worker (maps from API ``login_request_id``).
+        status: Initial status (typically ``PENDING``).
+        expires_at: When the request expires if not approved.
+    """
 
     request_id: str
     status: str
@@ -47,7 +53,12 @@ class LoginResult:
 
 @dataclass(frozen=True, slots=True)
 class PassportVerificationResult:
-    """Outcome of ``LimeSite.verify_passport()``."""
+    """Outcome of ``verify_passport()``.
+
+    Attributes:
+        valid: ``True`` when JWT signature, iss, aud, exp, and optional binding OK.
+        claims: Decoded JWT payload (includes ``sub``, ``user_id``, ``request_id``).
+    """
 
     valid: bool
     claims: dict[str, Any]
