@@ -4,6 +4,31 @@ Read [Home](index.md) for the flow diagram and method table.
 
 HTTP routes: [LIME platform docs](https://lime.pics/docs).
 
+## Signature cheat sheet
+
+<div class="sig-cheat" markdown="1">
+
+```python
+site = LimeSite(site_token: str | None = None, base_url: str | None = None, ...)
+
+@site.on_login
+async def handler(request_id: str, passport: str | None) -> None: ...
+
+await site.create_login_request() -> LoginRequestResult
+
+await site.verify_passport(
+    jwt: str,
+    *,
+    expected_request_id: str | None = None,
+) -> PassportVerificationResult
+
+await site.aclose() -> None
+```
+
+</div>
+
+Minimum setup: `LimeSite()` reads `LIME_SITE_TOKEN` from the environment.
+
 ## Method order
 
 | Step | Method |

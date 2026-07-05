@@ -40,13 +40,13 @@ sequenceDiagram
 
 ## Class structure: `LimeSite`
 
-| Step | Method | Returns |
-|------|--------|---------|
-| 1 | `LimeSite()` | client (inside asyncio loop) |
-| 2 | `@site.on_login` handler | registers SSE callback |
-| 3 | `await site.create_login_request()` | `LoginRequestResult` |
-| 4 | `await site.verify_passport(jwt, ...)` | `PassportVerificationResult` |
-| 5 | `await site.aclose()` | cleanup |
+| Step | Method | Signature (short) | Returns |
+|------|--------|-------------------|---------|
+| 1 | `LimeSite(...)` | `LimeSite(site_token=None, ...)` | client |
+| 2 | `@site.on_login` | `def handler(request_id: str, passport: str \| None)` | — |
+| 3 | `create_login_request()` | `await site.create_login_request()` | `LoginRequestResult` |
+| 4 | `verify_passport()` | `await site.verify_passport(jwt, *, expected_request_id=...)` | `PassportVerificationResult` |
+| 5 | `aclose()` | `await site.aclose()` | — |
 
 Full signatures: [API Reference](api.md).
 
