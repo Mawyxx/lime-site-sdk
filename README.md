@@ -8,9 +8,11 @@ Use this package on **site backends** (FastAPI, Django ASGI, workers). Pair with
 [![Python versions](https://img.shields.io/pypi/pyversions/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml)
+[![Documentation](https://readthedocs.org/projects/lime-sites-sdk/badge/?version=latest)](https://lime-sites-sdk.readthedocs.io/)
 [![MCP compatible](https://img.shields.io/badge/MCP-compatible-00C853)](https://modelcontextprotocol.io/)
 
-**📖 Platform API docs:** [https://lime.pics/docs](https://lime.pics/docs#guide-siteSdk)  
+**📖 Python API (Read the Docs):** [lime-sites-sdk.readthedocs.io](https://lime-sites-sdk.readthedocs.io/)  
+**📖 Platform HTTP docs:** [lime.pics/docs#guide-siteSdk](https://lime.pics/docs#guide-siteSdk)  
 **📦 This SDK:** [github.com/Mawyxx/lime-site-sdk](https://github.com/Mawyxx/lime-site-sdk)  
 **🌐 Platform:** [https://lime.pics](https://lime.pics)
 

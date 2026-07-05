@@ -11,6 +11,8 @@ def _parse_datetime(value: str) -> datetime:
 
 @dataclass(frozen=True, slots=True)
 class LoginRequestResult:
+    """Response from ``LimeSite.create_login_request()``."""
+
     request_id: str
     status: str
     expires_at: datetime
@@ -45,5 +47,7 @@ class LoginResult:
 
 @dataclass(frozen=True, slots=True)
 class PassportVerificationResult:
+    """Outcome of ``LimeSite.verify_passport()``."""
+
     valid: bool
     claims: dict[str, Any]

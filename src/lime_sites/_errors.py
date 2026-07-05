@@ -30,7 +30,7 @@ class RequestExpiredError(LimeError):
 
 
 class InvalidPassportError(LimeError):
-    """JWT passport verification failed."""
+    """JWT passport verification failed (signature, expiry, audience, or binding)."""
 
 
 class RateLimitError(LimeError):

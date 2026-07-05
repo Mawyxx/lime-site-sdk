@@ -20,7 +20,13 @@ _LOOP_REQUIRED_MSG = (
 
 
 class LimeSite:
-    """Async client for LIME site backends with auto-started SSE event dispatcher."""
+    """Async client for LIME site backends with auto-started SSE event dispatcher.
+
+    Construct inside a running asyncio loop (FastAPI lifespan). Registers ``@site.on_login``
+    handlers for approved/expired events and verifies passports via Core JWKS.
+
+    See `LIME platform docs <https://lime.pics/docs#guide-siteSdk>`_ for HTTP details.
+    """
 
     def __init__(
         self,
@@ -32,6 +38,20 @@ class LimeSite:
         sse_backoff_base: float = 0.5,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        """Start the SSE dispatcher and HTTP client.
+
+        Args:
+            site_token: Opaque site secret (default from ``LIME_SITE_TOKEN`` env).
+            base_url: API root including ``/api/v1`` (default ``LIME_API_BASE``).
+            timeout: HTTP timeout seconds.
+            max_retries: Retries on transient 408/429/5xx responses.
+            sse_backoff_base: Base delay seconds for SSE reconnect backoff.
+            http_client: Injectable ``httpx.AsyncClient`` for tests.
+
+        Raises:
+            AuthenticationError: When no site token is configured.
+            RuntimeError: When called outside a running asyncio event loop.
+        """
         resolved_token = (site_token or os.getenv("LIME_SITE_TOKEN") or "").strip()
         if not resolved_token:
             raise AuthenticationError(
@@ -88,7 +108,11 @@ class LimeSite:
         await self._client.aclose()
 
     async def create_login_request(self) -> LoginRequestResult:
-        """Create a PENDING site-login request."""
+        """Create a PENDING site-login request.
+
+        Returns:
+            ``LoginRequestResult`` — hand ``request_id`` to the agent worker out-of-band.
+        """
         data = await self._client.post("/modules/agent-login/requests", {})
         return LoginRequestResult.from_api(data)
 
@@ -98,7 +122,18 @@ class LimeSite:
         *,
         expected_request_id: str | None = None,
     ) -> PassportVerificationResult:
-        """Verify agent passport JWT via JWKS."""
+        """Verify an agent passport JWT via Core JWKS.
+
+        Args:
+            jwt: RS256 passport from SSE ``agent_passport_jwt`` (``aud=lime-site-login``).
+            expected_request_id: When set, JWT ``request_id`` claim must match.
+
+        Returns:
+            ``PassportVerificationResult`` with ``valid`` and decoded ``claims``.
+
+        Raises:
+            InvalidPassportError: Signature, expiry, audience, or binding failure.
+        """
         return await verify_jwt(
             self._client,
             jwt,
