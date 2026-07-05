@@ -1,74 +1,135 @@
 # lime-sites-sdk
 
-Official Python SDK for **LIME site backends**. Create login requests, receive agent
-passports over SSE, and verify RS256 JWTs via Core JWKS — async-first with an auto-started
-event dispatcher.
+Python library for **your website backend** — the server that runs your site and creates
+user sessions.
 
 [![PyPI](https://img.shields.io/pypi/v/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![Documentation](https://readthedocs.org/projects/lime-sites-sdk/badge/?version=latest)](https://lime-sites-sdk.readthedocs.io/)
 [![GitHub](https://img.shields.io/github/stars/Mawyxx/lime-site-sdk?style=social)](https://github.com/Mawyxx/lime-site-sdk)
 
-## Key features
+---
 
-- `await site.create_login_request()` — start headless site login
-- Perpetual SSE dispatcher with `@site.on_login` handlers
-- `await site.verify_passport(jwt)` — JWKS RS256 verify with `request_id` binding
-- FastAPI lifespan pattern documented
-- Typed errors and 100% test coverage
+## Who is this for?
 
-## Credential boundary
+You registered a **site** in the [LIME portal](https://lime.pics) and got a secret
+`site_token`. This SDK runs on **your backend** (FastAPI, Django ASGI, etc.) to:
 
-| Role | Credential | SDK |
-|------|------------|-----|
-| **Site backend** | **`X-Site-Token` + verify passport JWT** | **This package** |
-| Agent worker | `X-Agent-Token` + approve | [lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/) |
-| MCP resource server | Verify Bearer MCP JWT | [lime-mcp-server-sdk](https://lime-mcp-server-sdk.readthedocs.io/) |
+1. Start a login when a user wants to sign in through an agent
+2. Wait for the agent to approve
+3. Verify the passport and create **your** local session
 
-## Platform documentation
+You do **not** need this SDK in the agent worker — that side uses
+[lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/).
 
-- [LIME platform docs — Site SDK](https://lime.pics/docs#guide-siteSdk)
+---
+
+## One scenario — site login (this SDK does only this)
+
+There is no MCP in this package. The full login story:
+
+```
+YOUR BACKEND (this SDK)              AGENT WORKER (lime-agents-sdk)
+        │                                      │
+        │  1. create_login_request()           │
+        │     → request_id                     │
+        │─────────────────────────────────────>│  2. login(request_id)
+        │                                      │
+        │  3. SSE: passport arrives              │
+        │     @site.on_login handler fires     │
+        │  4. verify_passport(jwt)             │
+        │  5. create YOUR session/cookie       │
+```
+
+---
+
+## Class structure: `LimeSite`
+
+```
+LimeSite
+│
+├─── SETUP (inside running asyncio loop — e.g. FastAPI lifespan)
+│    site = LimeSite()              reads LIME_SITE_TOKEN; starts SSE listener
+│    await site.aclose()            stop SSE + HTTP on shutdown
+│
+├─── STEP 1 — Register handler (before create_login_request)
+│    @site.on_login
+│    async def handler(request_id, passport): ...
+│         passport = JWT string when approved; None when expired
+│
+├─── STEP 2 — Start login
+│    req = await site.create_login_request()   → LoginRequestResult
+│         pass req.request_id to agent worker
+│
+└─── STEP 3 — Verify passport (inside handler)
+     verified = await site.verify_passport(jwt, expected_request_id=...)
+              → PassportVerificationResult
+              map verified.claims to your user session
+```
+
+Method signatures: [API Reference](api.md).
+
+---
 
 ## Minimal example
 
 ```python
-# pip install lime-sites-sdk
 import asyncio
 from lime_sites import LimeSite
 
 async def main() -> None:
-    site = LimeSite()  # LIME_SITE_TOKEN; requires running event loop
+    site = LimeSite()  # must be inside asyncio.run() or FastAPI lifespan
 
     @site.on_login
-    async def handle(request_id: str, passport: str | None) -> None:
+    async def on_login(request_id: str, passport: str | None) -> None:
         if passport:
-            verified = await site.verify_passport(
-                passport, expected_request_id=request_id
-            )
-            print(verified.claims["sub"])
+            ok = await site.verify_passport(passport, expected_request_id=request_id)
+            if ok.valid:
+                print("User agent:", ok.claims["sub"])
 
     req = await site.create_login_request()
-    # hand req.request_id to agent worker (lime-agents-sdk)
-    await site.aclose()
+    print("Give this to agent:", req.request_id)
+    # ... wait for handler; then await site.aclose()
 
 asyncio.run(main())
 ```
 
-## Next steps
+---
 
-- [Installation](installation.md)
-- [Quick Start](quickstart.md)
-- [API Reference](api.md) — **method index + one section per method**
-- [Examples](examples.md)
+## What you need before coding
 
-## API at a glance
+| Item | Where to get it |
+|------|-----------------|
+| `LIME_SITE_TOKEN` | LIME portal → your site → copy token once |
+| Agent approval | Agent worker calls `login(request_id)` — [lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/) |
 
-| Step | Call |
-|------|------|
-| 1. Start (inside asyncio loop) | `site = LimeSite()` |
-| 2. Register SSE handler | `@site.on_login` async def … |
-| 3. Create login | `req = await site.create_login_request()` |
-| 4. Hand off to agent | pass `req.request_id` OOB |
-| 5. In handler, verify JWT | `await site.verify_passport(jwt, expected_request_id=…)` |
-| 6. Shutdown | `await site.aclose()` |
+Optional: `LIME_API_BASE` — default `https://lime.pics/api/v1`.
 
-Details: [API Reference](api.md).
+---
+
+## Install
+
+```bash
+pip install lime-sites-sdk
+```
+
+Details: [Installation](installation.md)
+
+---
+
+## Other LIME SDKs
+
+| SDK | Your role |
+|-----|-----------|
+| [lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/) | Agent worker (approves login) |
+| **lime-sites-sdk** (this) | Website backend |
+| [lime-mcp-server-sdk](https://lime-mcp-server-sdk.readthedocs.io/) | MCP server (separate product) |
+
+Platform HTTP reference: [lime.pics/docs](https://lime.pics/docs#guide-siteSdk)
+
+---
+
+## Next pages
+
+1. [Quick Start](quickstart.md) — FastAPI pattern step by step
+2. [API Reference](api.md) — every method
+3. [Examples](examples.md) — idempotent handlers, session mapping

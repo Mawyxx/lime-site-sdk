@@ -1,27 +1,20 @@
 # API Reference
 
-Each method below is a **separate section** with signature and parameters.
+Start with [Home](index.md) for the login flow diagram and `LimeSite` method tree.
 
-HTTP details: [LIME platform docs](https://lime.pics/docs#guide-siteSdk).
+Each method below has its **own section**. HTTP routes: [LIME platform docs](https://lime.pics/docs).
 
 ---
 
-## `LimeSite` — method index
+## Method order (site login only)
 
-| Method | What it does | Returns |
-|--------|--------------|---------|
-| [`LimeSite()`](#limesite) | Start SSE dispatcher + HTTP client | `LimeSite` |
-| [`on_login()`](#on_login) | Register handler for approved/expired SSE events | decorator |
-| [`create_login_request()`](#create_login_request) | Start login; get `request_id` for agent | `LoginRequestResult` |
-| [`verify_passport()`](#verify_passport) | Validate passport JWT (JWKS + binding) | `PassportVerificationResult` |
-| [`aclose()`](#aclose) | Stop SSE + close HTTP client | `None` |
-
-!!! tip "Typical flow"
-    1. `site = LimeSite()` inside running asyncio loop (FastAPI lifespan).
-    2. `@site.on_login` handler — receives passport when agent approves.
-    3. `req = await site.create_login_request()` — pass `req.request_id` to agent worker
-       ([lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/)).
-    4. In handler: `await site.verify_passport(jwt, expected_request_id=req.request_id)`.
+| Step | Method |
+|------|--------|
+| 1 | `LimeSite()` |
+| 2 | `@site.on_login` |
+| 3 | `create_login_request()` |
+| 4 | `verify_passport()` (in handler) |
+| 5 | `aclose()` |
 
 ---
 
