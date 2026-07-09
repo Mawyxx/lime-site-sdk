@@ -42,6 +42,52 @@ def client_factory():
 
 
 @pytest.mark.asyncio
+async def test_fetch_spec_document_success(client_factory) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "X-Site-Token" not in request.headers
+        assert request.url.path == "/api/v1/core/.well-known/jwks.json"
+        return httpx.Response(200, content=json.dumps({"keys": []}).encode())
+
+    client = client_factory(httpx.MockTransport(handler))
+    data = await client.fetch_spec_document("/core/.well-known/jwks.json")
+    assert data == {"keys": []}
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_spec_document_invalid_json(client_factory) -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"not-json")
+
+    client = client_factory(httpx.MockTransport(handler))
+    with pytest.raises(LimeError, match="Invalid JSON"):
+        await client.fetch_spec_document("/core/.well-known/jwks.json")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_spec_document_unexpected_shape(client_factory) -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b'"string"')
+
+    client = client_factory(httpx.MockTransport(handler))
+    with pytest.raises(LimeError, match="Unexpected response shape"):
+        await client.fetch_spec_document("/core/.well-known/jwks.json")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_spec_document_non_200(client_factory) -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, content=json.dumps({"ok": False}).encode())
+
+    client = client_factory(httpx.MockTransport(handler))
+    with pytest.raises(LimeError, match="Spec document request failed"):
+        await client.fetch_spec_document("/core/.well-known/jwks.json")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_get_public_success(client_factory) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert "X-Site-Token" not in request.headers
