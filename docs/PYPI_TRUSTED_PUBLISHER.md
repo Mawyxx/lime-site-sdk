@@ -13,9 +13,9 @@
 |-------|-------|
 | PyPI project name | `lime-sites-sdk` |
 | Owner | `Mawyxx` |
-| Repository name | `lime-site-sdk` |
+| Repository name | `lime-site-sdk` ← **без `s` в site** |
 | Workflow name | `publish.yml` |
-| Environment name | *(leave empty — workflow has no GitHub Environment)* |
+| Environment name | `pypi` |
 
 4. Re-run the failed **Publish** workflow for tag `v1.1.0`, or push a new tag.
 
