@@ -19,6 +19,37 @@
 
 4. Re-run the failed **Publish** workflow for tag `v1.1.0`, or push a new tag.
 
+## OIDC claims (must match PyPI publisher exactly)
+
+GitHub sends these claims on publish:
+
+```
+repository:     Mawyxx/lime-site-sdk
+workflow:       publish.yml
+environment:    pypi
+ref:            refs/tags/v1.1.0
+```
+
+**Common mistakes:**
+
+| Mistake | Correct |
+|---------|---------|
+| GitHub repo `lime-sites-sdk` | `lime-site-sdk` (no **s** in site) |
+| PyPI project `lime-site-sdk` | `lime-sites-sdk` (with **s** in sites) |
+| Workflow `Publish` or `ci.yml` | `publish.yml` |
+| Environment left empty | `pypi` |
+
+## Fallback: API token
+
+If trusted publishing still fails, set a repo secret and run **Publish (API token)** workflow:
+
+```bash
+gh secret set PYPI_API_TOKEN --repo Mawyxx/lime-site-sdk
+gh workflow run "Publish (API token)" --repo Mawyxx/lime-site-sdk
+```
+
+Token: PyPI → Account settings → API tokens → scope `lime-sites-sdk`.
+
 ## Verify
 
 ```bash
