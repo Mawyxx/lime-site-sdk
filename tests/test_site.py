@@ -20,6 +20,10 @@ def _envelope_ok(data: dict[str, Any]) -> bytes:
     return json.dumps({"ok": True, "data": data}).encode()
 
 
+def _jwks_ok(jwks_keys: list[dict[str, Any]]) -> bytes:
+    return json.dumps({"keys": jwks_keys}).encode()
+
+
 def _sse_line(payload: dict[str, Any]) -> bytes:
     return f"data: {json.dumps(payload, separators=(',', ':'))}\n\n".encode()
 
@@ -104,7 +108,7 @@ async def test_full_mock_flow_with_on_login() -> None:
 
             return httpx.Response(200, content=body())
         if path.endswith("/jwks.json"):
-            return httpx.Response(200, content=_envelope_ok({"keys": [jwk]}))
+            return httpx.Response(200, content=_jwks_ok([jwk]))
         return httpx.Response(404)
 
     received = asyncio.Event()

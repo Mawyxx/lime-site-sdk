@@ -16,8 +16,8 @@ from lime_sites._errors import InvalidPassportError
 from lime_sites._jwks import clear_jwks_cache, verify_jwt
 
 
-def _envelope_ok(data: dict[str, Any]) -> bytes:
-    return json.dumps({"ok": True, "data": data}).encode()
+def _jwks_ok(jwks_keys: list[dict[str, Any]]) -> bytes:
+    return json.dumps({"keys": jwks_keys}).encode()
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def _make_client(
     def handler(request: httpx.Request) -> httpx.Response:
         if refresh_count is not None:
             refresh_count[0] += 1
-        return httpx.Response(200, content=_envelope_ok({"keys": jwks_keys}))
+        return httpx.Response(200, content=_jwks_ok(jwks_keys))
 
     return LimeSiteClient(
         site_token="st_test",
@@ -139,7 +139,7 @@ async def test_kid_miss_triggers_jwks_refresh(rsa_keys) -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         calls["n"] += 1
         keys = [jwk] if calls["n"] == 1 else [jwk_copy]
-        return httpx.Response(200, content=_envelope_ok({"keys": keys}))
+        return httpx.Response(200, content=_jwks_ok(keys))
 
     client = LimeSiteClient(
         site_token="st_test",
@@ -252,7 +252,7 @@ async def test_missing_kid_header(rsa_keys) -> None:
 @pytest.mark.asyncio
 async def test_jwks_missing_keys_array() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=_envelope_ok({"keys": "bad"}))
+        return httpx.Response(200, content=json.dumps({"keys": "bad"}).encode())
 
     client = LimeSiteClient(
         site_token="st_test",

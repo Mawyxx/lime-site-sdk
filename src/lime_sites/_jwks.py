@@ -98,7 +98,7 @@ async def _refresh_jwks(client: LimeSiteClient, *, force: bool = False) -> None:
     if force:
         _key_cache.clear()
 
-    data = await client.get_public(_JWKS_PATH)
+    data = await client.fetch_spec_document(_JWKS_PATH)
     keys = data.get("keys")
     if not isinstance(keys, list):
         raise InvalidPassportError("JWKS response missing keys array")

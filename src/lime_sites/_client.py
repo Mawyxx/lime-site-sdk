@@ -59,6 +59,28 @@ class LimeSiteClient:
     async def get_public(self, path: str) -> dict[str, Any]:
         return await self._request("GET", path, authenticated=False)
 
+    async def fetch_spec_document(self, path: str) -> dict[str, Any]:
+        """Fetch a spec-native JSON document (e.g. RFC 7517 JWKS) without LIME envelope."""
+        url = f"{self._base_url}/{path.lstrip('/')}"
+        logger.debug("GET %s (spec document)", url)
+        response = await self._client.get(url, headers={"Accept": "application/json"})
+        status = response.status_code
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise LimeError(
+                f"Invalid JSON response (HTTP {status})",
+                http_status=status,
+            ) from exc
+        if not isinstance(payload, dict):
+            raise LimeError(f"Unexpected response shape (HTTP {status})", http_status=status)
+        if status != 200:
+            raise LimeError(
+                f"Spec document request failed (HTTP {status})",
+                http_status=status,
+            )
+        return payload
+
     async def get(self, path: str) -> dict[str, Any]:
         return await self._request("GET", path, authenticated=True)
 
