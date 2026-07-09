@@ -15,7 +15,7 @@
 | Owner | `Mawyxx` |
 | Repository name | `lime-site-sdk` |
 | Workflow name | `publish.yml` |
-| Environment name | `pypi` |
+| Environment name | *(leave empty — workflow has no GitHub Environment)* |
 
 4. Re-run the failed **Publish** workflow for tag `v1.1.0`, or push a new tag.
 
