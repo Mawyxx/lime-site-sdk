@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-07-18
+
+### Fixed
+
+- JWKS verify: disable PyJWT erify_iat so freshly issued passports are not rejected on small client/issuer clock skew (ImmatureSignatureError)
+- Malformed JWT headers raise InvalidPassportError instead of raw DecodeError
+
+[1.2.1]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.2.1
+
 ## [1.2.0] - 2026-07-18
 
 ### Added

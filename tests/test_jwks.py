@@ -317,3 +317,42 @@ async def test_skips_malformed_jwk_entries(rsa_keys) -> None:
     result = await verify_jwt(client, token)
     assert result.valid is True
     await client.aclose()
+
+@pytest.mark.asyncio
+async def test_iat_slightly_in_future_accepted(rsa_keys) -> None:
+    """Issuer clock ahead of verifier must not reject a fresh passport."""
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    now = int(time.time())
+    token = jwt.encode(
+        {
+            "sub": "agent_123",
+            "aud": "lime-site-login",
+            "iat": now + 5,
+            "exp": now + 65,
+            "request_id": "lr_skew",
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+    result = await verify_jwt(client, token, expected_request_id="lr_skew")
+    assert result.valid is True
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_malformed_jwt_header_raises_invalid_passport() -> None:
+    client = LimeSiteClient(
+        site_token="st_test",
+        base_url="http://test/api/v1",
+        timeout=5.0,
+        max_retries=0,
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(404)),
+        ),
+    )
+    with pytest.raises(InvalidPassportError, match="header"):
+        await verify_jwt(client, "not-a-jwt")
+    await client.aclose()
+

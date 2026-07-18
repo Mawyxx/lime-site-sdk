@@ -68,18 +68,23 @@ async def _verify_jwt(
     max_ttl_seconds: int,
     expected_claim: tuple[str, str] | None = None,
 ) -> PassportVerificationResult:
-    header = jwt.get_unverified_header(jwt_token)
+    try:
+        header = jwt.get_unverified_header(jwt_token)
+    except jwt.PyJWTError as exc:
+        raise InvalidPassportError(f"JWT header is invalid: {exc}") from exc
     kid = header.get("kid")
     if not isinstance(kid, str) or not kid:
         raise InvalidPassportError("JWT header missing kid")
 
     key = await _resolve_key(client, kid)
     try:
+        # verify_exp/iat off: we enforce TTL + expiry below with platform rules.
+        # Disabling verify_iat avoids false rejects on small issuer/client clock skew.
         claims = jwt.decode(
             jwt_token,
             key=key,
             algorithms=["RS256"],
-            options={"verify_aud": False, "verify_exp": False},
+            options={"verify_aud": False, "verify_exp": False, "verify_iat": False},
         )
     except jwt.PyJWTError as exc:
         raise InvalidPassportError(f"JWT signature verification failed: {exc}") from exc

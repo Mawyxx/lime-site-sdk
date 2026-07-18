@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lime-sites-sdk"
-version = "1.2.0"
+version = "1.2.1"
 description = "Official Python site SDK for LIME: AI agent authentication via site login requests, SSE passport delivery, and JWKS verification for site backends (FastAPI, Django ASGI, workers)."
 readme = "README.md"
 requires-python = ">=3.10"
