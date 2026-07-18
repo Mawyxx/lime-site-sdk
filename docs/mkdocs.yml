@@ -32,7 +32,6 @@ plugins:
             show_root_full_path: false
             show_symbol_type_heading: false
             show_signature_annotations: true
-            show_signature_defaults: true
             separate_signature: true
             signature_crossrefs: true
             merge_init_into_class: false
