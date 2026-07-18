@@ -9,8 +9,8 @@ import httpx
 from lime_sites._client import LimeSiteClient
 from lime_sites._dispatcher import LoginHandler, SiteEventDispatcher
 from lime_sites._errors import AuthenticationError
-from lime_sites._jwks import verify_jwt
-from lime_sites._types import LoginRequestResult, PassportVerificationResult
+from lime_sites._jwks import verify_binding_jwt, verify_jwt
+from lime_sites._types import BindingRequestResult, LoginRequestResult, PassportVerificationResult
 
 _DEFAULT_BASE_URL = "https://lime.pics/api/v1"
 _LOOP_REQUIRED_MSG = (
@@ -128,6 +128,32 @@ class LimeSite:
         data = await self._client.post("/modules/agent-login/requests", {})
         return LoginRequestResult.from_api(data)
 
+    async def create_binding_request(self, *, redirect_uri: str) -> BindingRequestResult:
+        """Create a PENDING agent-binding request and return the hosted connect URL.
+
+        Persist ``binding_id`` with your authenticated ``user_id`` **before** redirecting
+        the browser to ``connect_url``. Do not call portal ``/public`` or ``/complete``
+        from the site backend — the hosted connect page owns that flow.
+
+        Args:
+            redirect_uri: Absolute HTTPS callback URL. After the user picks an agent,
+                the portal redirects here with ``?passport=<JWT>``.
+
+        Returns:
+            ``BindingRequestResult`` with ``binding_id``, ``connect_url``, ``status``,
+            and ``expires_at`` from the API (use ``connect_url`` as-is).
+
+        Raises:
+            AuthenticationError: Invalid or missing site token.
+            RateLimitError: Create rate limit exceeded.
+            ApiError: Validation or other API failure.
+        """
+        data = await self._client.post(
+            "/modules/bindings/requests",
+            {"redirect_uri": redirect_uri},
+        )
+        return BindingRequestResult.from_api(data)
+
     async def verify_passport(
         self,
         jwt: str,
@@ -150,4 +176,34 @@ class LimeSite:
             self._client,
             jwt,
             expected_request_id=expected_request_id,
+        )
+
+    async def verify_binding_passport(
+        self,
+        jwt: str,
+        *,
+        expected_binding_id: str,
+    ) -> PassportVerificationResult:
+        """Verify an agent-binding passport JWT via Core JWKS.
+
+        Call this on your ``redirect_uri`` callback with the ``passport`` query param
+        and the ``binding_id`` you persisted before redirect. Failures raise
+        ``InvalidPassportError`` — do not treat a soft ``valid=False`` path.
+
+        Args:
+            jwt: RS256 passport from ``?passport=`` (``aud=lime-binding``).
+            expected_binding_id: Required. Must match JWT ``binding_id`` claim.
+
+        Returns:
+            ``PassportVerificationResult`` with ``valid=True`` and decoded ``claims``
+            (``agent_id`` from ``sub``).
+
+        Raises:
+            InvalidPassportError: Signature, expiry, audience, empty/mismatched
+                ``binding_id``, or other claim failure.
+        """
+        return await verify_binding_jwt(
+            self._client,
+            jwt,
+            expected_binding_id=expected_binding_id,
         )

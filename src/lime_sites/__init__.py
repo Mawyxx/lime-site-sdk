@@ -9,13 +9,19 @@ from lime_sites._errors import (
     RequestExpiredError,
 )
 from lime_sites._site import LimeSite
-from lime_sites._types import LoginRequestResult, LoginResult, PassportVerificationResult
+from lime_sites._types import (
+    BindingRequestResult,
+    LoginRequestResult,
+    LoginResult,
+    PassportVerificationResult,
+)
 
-__version__ = "1.0.4"
+__version__ = "1.2.0"
 
 __all__ = [
     "ApiError",
     "AuthenticationError",
+    "BindingRequestResult",
     "InvalidPassportError",
     "LimeError",
     "LimeSite",

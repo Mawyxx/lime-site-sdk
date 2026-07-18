@@ -14,8 +14,10 @@ from lime_sites._types import PassportVerificationResult
 logger = logging.getLogger("lime")
 
 _JWKS_PATH = "/core/.well-known/jwks.json"
-_EXPECTED_AUD = "lime-site-login"
-_MAX_TTL_SECONDS = 120
+_LOGIN_AUD = "lime-site-login"
+_BINDING_AUD = "lime-binding"
+_LOGIN_MAX_TTL_SECONDS = 120
+_BINDING_MAX_TTL_SECONDS = 60
 
 _key_cache: dict[str, Any] = {}
 
@@ -26,7 +28,46 @@ async def verify_jwt(
     *,
     expected_request_id: str | None = None,
 ) -> PassportVerificationResult:
-    """Verify agent passport JWT using cached JWKS."""
+    """Verify site-login agent passport JWT using cached JWKS."""
+    expected_claim: tuple[str, str] | None = None
+    if expected_request_id is not None:
+        expected_claim = ("request_id", expected_request_id)
+    return await _verify_jwt(
+        client,
+        jwt_token,
+        expected_audience=_LOGIN_AUD,
+        max_ttl_seconds=_LOGIN_MAX_TTL_SECONDS,
+        expected_claim=expected_claim,
+    )
+
+
+async def verify_binding_jwt(
+    client: LimeSiteClient,
+    jwt_token: str,
+    *,
+    expected_binding_id: str,
+) -> PassportVerificationResult:
+    """Verify agent-binding passport JWT (``aud=lime-binding``)."""
+    binding_id = expected_binding_id.strip()
+    if not binding_id:
+        raise InvalidPassportError("expected_binding_id is required")
+    return await _verify_jwt(
+        client,
+        jwt_token,
+        expected_audience=_BINDING_AUD,
+        max_ttl_seconds=_BINDING_MAX_TTL_SECONDS,
+        expected_claim=("binding_id", binding_id),
+    )
+
+
+async def _verify_jwt(
+    client: LimeSiteClient,
+    jwt_token: str,
+    *,
+    expected_audience: str,
+    max_ttl_seconds: int,
+    expected_claim: tuple[str, str] | None = None,
+) -> PassportVerificationResult:
     header = jwt.get_unverified_header(jwt_token)
     kid = header.get("kid")
     if not isinstance(kid, str) or not kid:
@@ -47,9 +88,9 @@ async def verify_jwt(
         raise InvalidPassportError("JWT payload must be an object")
 
     aud = claims.get("aud")
-    if aud != _EXPECTED_AUD:
+    if aud != expected_audience:
         raise InvalidPassportError(
-            f"Invalid audience: expected {_EXPECTED_AUD!r}, got {aud!r}",
+            f"Invalid audience: expected {expected_audience!r}, got {aud!r}",
         )
 
     exp = claims.get("exp")
@@ -61,16 +102,21 @@ async def verify_jwt(
     if exp <= now:
         raise InvalidPassportError("JWT has expired")
 
-    if float(exp) - float(iat) > _MAX_TTL_SECONDS:
+    if float(exp) - float(iat) > max_ttl_seconds:
         raise InvalidPassportError(
-            f"JWT TTL exceeds platform maximum ({_MAX_TTL_SECONDS}s)",
+            f"JWT TTL exceeds platform maximum ({max_ttl_seconds}s)",
         )
 
-    if expected_request_id is not None:
-        claim_request_id = claims.get("request_id")
-        if str(claim_request_id) != expected_request_id:
+    if expected_claim is not None:
+        claim_name, expected_value = expected_claim
+        claim_value = claims.get(claim_name)
+        if str(claim_value) != expected_value:
+            if claim_name == "request_id":
+                raise InvalidPassportError(
+                    "JWT request_id claim does not match expected request",
+                )
             raise InvalidPassportError(
-                "JWT request_id claim does not match expected request",
+                f"JWT {claim_name} claim does not match expected value",
             )
 
     normalized = _normalize_claims(claims)

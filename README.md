@@ -182,6 +182,76 @@ asyncio.run(main())
 
 ---
 
+## Agent Binding (hosted connect)
+
+Bind a LIME agent to a site user via the hosted portal — no SSE. Persist `binding_id` **before** redirect; verify the callback passport with `aud=lime-binding`.
+
+```python
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
+from lime_sites import LimeSite
+
+site: LimeSite
+pending_bindings: dict[str, str] = {}  # binding_id -> your user_id
+# Also store binding_id on the browser session / signed cookie so the callback can load it.
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global site
+    site = LimeSite()  # LIME_SITE_TOKEN — server-side only
+    yield
+    await site.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.post("/bind/start")
+async def bind_start(user_id: str) -> RedirectResponse:
+    req = await site.create_binding_request(
+        redirect_uri="https://your.app/bind/callback",
+    )
+    # CRITICAL: persist before redirect — LIME does not host your user mapping.
+    pending_bindings[req.binding_id] = user_id
+    # Set a short-lived cookie/session value for binding_id as well.
+    return RedirectResponse(req.connect_url, status_code=302)
+
+
+@app.get("/bind/callback")
+async def bind_callback(request: Request, binding_id: str) -> dict[str, str]:
+    passport = request.query_params["passport"]
+    user_id = pending_bindings.pop(binding_id)
+    verified = await site.verify_binding_passport(
+        passport,
+        expected_binding_id=binding_id,
+    )
+    agent_id = verified.claims["agent_id"]  # JWT sub
+    # UPSERT user_id <-> agent_id in your DB; clear pending
+    return {"agent_id": agent_id, "user_id": user_id}
+```
+
+| Step | SDK / app |
+|------|-----------|
+| 1 | `create_binding_request(redirect_uri=…)` → `binding_id`, `connect_url` |
+| 2 | Persist `binding_id` ↔ `user_id` server-side |
+| 3 | `302` to `connect_url` (use API value as-is) |
+| 4 | Callback `?passport=` → `verify_binding_passport(..., expected_binding_id=…)` |
+| 5 | UPSERT `claims.sub` (`agent_id`); clear pending |
+
+| Check | Value |
+|-------|-------|
+| Audience | `aud == "lime-binding"` |
+| Claim | JWT `binding_id` must match stored id |
+| TTL | passport `exp - iat` ≤ **60s** |
+| Failures | raise `InvalidPassportError` (no soft `valid=False`) |
+
+Portal `/public` and `/complete` are **not** wrapped by this SDK.
+
+---
+
 ## Features
 
 - **Headless AI agent login** — no browser, QR, or OAuth redirect on the site
@@ -189,6 +259,7 @@ asyncio.run(main())
 - **`@site.on_login` handlers** — `approved` → JWT string; `expired` → `passport=None`
 - **JWKS passport verification** — RS256, `aud=lime-site-login`, cached keys, `kid` refresh
 - **`create_login_request()`** — `POST /modules/agent-login/requests` with `X-Site-Token`
+- **Agent Binding** — `create_binding_request()` + `verify_binding_passport()` (`aud=lime-binding`, TTL ≤ 60s)
 - **Typed results** — `LoginRequestResult`, `PassportVerificationResult`, mypy-clean public API
 
 ---
@@ -203,7 +274,9 @@ Construct **inside a running asyncio loop** (e.g. FastAPI lifespan, `asyncio.run
 |--------|-------------|
 | `@site.on_login` / `site.on_login(handler)` | Register handler for SSE login events |
 | `await site.create_login_request()` | Start login → `LoginRequestResult` |
-| `await site.verify_passport(jwt, *, expected_request_id=None)` | JWKS RS256 verify → `PassportVerificationResult` |
+| `await site.create_binding_request(*, redirect_uri)` | Start binding → `BindingRequestResult` |
+| `await site.verify_passport(jwt, *, expected_request_id=None)` | JWKS RS256 verify (`aud=lime-site-login`) → `PassportVerificationResult` |
+| `await site.verify_binding_passport(jwt, *, expected_binding_id)` | JWKS RS256 verify (`aud=lime-binding`) → `PassportVerificationResult` |
 | `await site.aclose()` | Stop dispatcher + close HTTP client |
 
 **Constructor highlights:** `site_token` / `LIME_SITE_TOKEN`, `base_url` / `LIME_API_BASE` (default `https://lime.pics/api/v1`), `timeout`, `max_retries`, `sse_backoff_base`, injectable `http_client`.

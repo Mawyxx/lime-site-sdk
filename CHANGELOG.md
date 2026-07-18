@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-07-18
+
+### Added
+
+- Agent Binding: LimeSite.create_binding_request(*, redirect_uri) -> BindingRequestResult
+- Agent Binding: LimeSite.verify_binding_passport(jwt, *, expected_binding_id) (ud=lime-binding, TTL <= 60s)
+- Export BindingRequestResult
+
+### Changed
+
+- Internal JWKS verifier parameterized for login (ud=lime-site-login, TTL <= 120s) vs binding
+
+[1.2.0]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.2.0
+
+## [1.1.0] - 2026-07-09
+
+### Changed
+
+- Fetch Core JWKS via etch_spec_document (RFC 7517 raw document, no LIME envelope)
+
+[1.1.0]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.1.0
+
+
 ## [1.0.0] - 2026-06-09
 
 ### Breaking

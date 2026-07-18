@@ -52,12 +52,38 @@ class LoginResult:
 
 
 @dataclass(frozen=True, slots=True)
-class PassportVerificationResult:
-    """Outcome of ``verify_passport()``.
+class BindingRequestResult:
+    """Response from ``create_binding_request()``.
 
     Attributes:
-        valid: ``True`` when JWT signature, iss, aud, exp, and optional binding OK.
-        claims: Decoded JWT payload (includes ``sub``, ``user_id``, ``request_id``).
+        binding_id: Persist server-side with your user session before redirecting.
+        connect_url: Hosted portal URL from the API — redirect the browser here.
+        status: Initial status (typically ``PENDING``).
+        expires_at: When the binding request expires if not completed.
+    """
+
+    binding_id: str
+    connect_url: str
+    status: str
+    expires_at: datetime
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> BindingRequestResult:
+        return cls(
+            binding_id=str(data["binding_id"]),
+            connect_url=str(data["connect_url"]),
+            status=str(data["status"]),
+            expires_at=_parse_datetime(str(data["expires_at"])),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PassportVerificationResult:
+    """Outcome of ``verify_passport()`` / ``verify_binding_passport()``.
+
+    Attributes:
+        valid: ``True`` when JWT signature, aud, exp, and claim binding OK.
+        claims: Decoded JWT payload (includes ``sub`` → ``agent_id``, ``user_id``).
     """
 
     valid: bool
