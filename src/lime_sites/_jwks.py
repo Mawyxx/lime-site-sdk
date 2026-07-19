@@ -44,20 +44,23 @@ async def verify_jwt(
 async def verify_binding_jwt(
     client: LimeSiteClient,
     jwt_token: str,
-    *,
-    expected_binding_id: str,
 ) -> PassportVerificationResult:
-    """Verify agent-binding passport JWT (``aud=lime-binding``)."""
-    binding_id = expected_binding_id.strip()
-    if not binding_id:
-        raise InvalidPassportError("expected_binding_id is required")
-    return await _verify_jwt(
+    """Verify agent-binding passport JWT (``aud=lime-binding``).
+
+    Cryptographic checks only (signature, audience, TTL). Callers must match
+    ``claims["binding_id"]`` to their pending row / user session themselves.
+    """
+    result = await _verify_jwt(
         client,
         jwt_token,
         expected_audience=_BINDING_AUD,
         max_ttl_seconds=_BINDING_MAX_TTL_SECONDS,
-        expected_claim=("binding_id", binding_id),
+        expected_claim=None,
     )
+    binding_id = result.claims.get("binding_id")
+    if not isinstance(binding_id, str) or not binding_id.strip():
+        raise InvalidPassportError("JWT missing binding_id claim")
+    return result
 
 
 async def _verify_jwt(
@@ -116,12 +119,9 @@ async def _verify_jwt(
         claim_name, expected_value = expected_claim
         claim_value = claims.get(claim_name)
         if str(claim_value) != expected_value:
-            if claim_name == "request_id":
-                raise InvalidPassportError(
-                    "JWT request_id claim does not match expected request",
-                )
+            # verify_jwt is the only caller (expected_claim = request_id).
             raise InvalidPassportError(
-                f"JWT {claim_name} claim does not match expected value",
+                "JWT request_id claim does not match expected request",
             )
 
     normalized = _normalize_claims(claims)

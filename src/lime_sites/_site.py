@@ -181,29 +181,26 @@ class LimeSite:
     async def verify_binding_passport(
         self,
         jwt: str,
-        *,
-        expected_binding_id: str,
     ) -> PassportVerificationResult:
         """Verify an agent-binding passport JWT via Core JWKS.
 
-        Call this on your ``redirect_uri`` callback with the ``passport`` query param
-        and the ``binding_id`` you persisted before redirect. Failures raise
-        ``InvalidPassportError`` — do not treat a soft ``valid=False`` path.
+        Cryptographic checks only: RS256/JWKS, ``aud=lime-binding``, TTL ≤ 60s,
+        and a non-empty ``binding_id`` claim. Matching ``binding_id`` to your
+        pending request / ``user_id`` is integrator business logic — read
+        ``verified.claims["binding_id"]`` after this returns.
+
+        Failures raise ``InvalidPassportError`` — do not treat a soft
+        ``valid=False`` path.
 
         Args:
             jwt: RS256 passport from ``?passport=`` (``aud=lime-binding``).
-            expected_binding_id: Required. Must match JWT ``binding_id`` claim.
 
         Returns:
             ``PassportVerificationResult`` with ``valid=True`` and decoded ``claims``
             (``agent_id`` from ``sub``).
 
         Raises:
-            InvalidPassportError: Signature, expiry, audience, empty/mismatched
+            InvalidPassportError: Signature, expiry, audience, missing/blank
                 ``binding_id``, or other claim failure.
         """
-        return await verify_binding_jwt(
-            self._client,
-            jwt,
-            expected_binding_id=expected_binding_id,
-        )
+        return await verify_binding_jwt(self._client, jwt)

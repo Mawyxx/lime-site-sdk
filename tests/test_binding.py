@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import json
 import time
 from typing import Any
@@ -197,10 +196,7 @@ async def test_verify_binding_passport_success(rsa_keys) -> None:
         base_url="http://mock/api/v1",
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
     )
-    result = await site.verify_binding_passport(
-        passport,
-        expected_binding_id="br_ok",
-    )
+    result = await site.verify_binding_passport(passport)
     await site.aclose()
 
     assert result.valid is True
@@ -215,17 +211,7 @@ async def test_verify_binding_wrong_aud(rsa_keys) -> None:
     client = _make_client([jwk])
     token = _sign_binding(private_key, kid, aud="lime-site-login")
     with pytest.raises(InvalidPassportError, match="audience"):
-        await verify_binding_jwt(client, token, expected_binding_id="br_test")
-    await client.aclose()
-
-
-@pytest.mark.asyncio
-async def test_verify_binding_wrong_binding_id(rsa_keys) -> None:
-    private_key, jwk, kid = rsa_keys
-    client = _make_client([jwk])
-    token = _sign_binding(private_key, kid, binding_id="br_a")
-    with pytest.raises(InvalidPassportError, match="binding_id"):
-        await verify_binding_jwt(client, token, expected_binding_id="br_b")
+        await verify_binding_jwt(client, token)
     await client.aclose()
 
 
@@ -246,7 +232,17 @@ async def test_verify_binding_missing_binding_id_claim(rsa_keys) -> None:
         headers={"kid": kid},
     )
     with pytest.raises(InvalidPassportError, match="binding_id"):
-        await verify_binding_jwt(client, token, expected_binding_id="br_x")
+        await verify_binding_jwt(client, token)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_verify_binding_blank_binding_id_claim(rsa_keys) -> None:
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    token = _sign_binding(private_key, kid, binding_id="   ")
+    with pytest.raises(InvalidPassportError, match="binding_id"):
+        await verify_binding_jwt(client, token)
     await client.aclose()
 
 
@@ -268,7 +264,7 @@ async def test_verify_binding_expired(rsa_keys) -> None:
         headers={"kid": kid},
     )
     with pytest.raises(InvalidPassportError, match="expired"):
-        await verify_binding_jwt(client, token, expected_binding_id="br_x")
+        await verify_binding_jwt(client, token)
     await client.aclose()
 
 
@@ -278,7 +274,7 @@ async def test_verify_binding_ttl_too_long(rsa_keys) -> None:
     client = _make_client([jwk])
     token = _sign_binding(private_key, kid, ttl=61)
     with pytest.raises(InvalidPassportError, match="TTL"):
-        await verify_binding_jwt(client, token, expected_binding_id="br_test")
+        await verify_binding_jwt(client, token)
     await client.aclose()
 
 
@@ -289,41 +285,8 @@ async def test_verify_binding_bad_signature(rsa_keys) -> None:
     client = _make_client([jwk])
     token = _sign_binding(other, kid)
     with pytest.raises(InvalidPassportError, match="signature"):
-        await verify_binding_jwt(client, token, expected_binding_id="br_test")
+        await verify_binding_jwt(client, token)
     await client.aclose()
-
-
-@pytest.mark.asyncio
-async def test_verify_binding_empty_expected_id(rsa_keys) -> None:
-    private_key, jwk, kid = rsa_keys
-    client = _make_client([jwk])
-    token = _sign_binding(private_key, kid)
-    with pytest.raises(InvalidPassportError, match="expected_binding_id"):
-        await verify_binding_jwt(client, token, expected_binding_id="  ")
-    await client.aclose()
-
-
-def test_verify_binding_passport_requires_keyword() -> None:
-    sig = inspect.signature(LimeSite.verify_binding_passport)
-    params = list(sig.parameters.values())
-    # self, jwt, *, expected_binding_id
-    assert params[2].kind is inspect.Parameter.KEYWORD_ONLY
-    assert params[2].name == "expected_binding_id"
-    assert params[2].default is inspect.Parameter.empty
-
-
-@pytest.mark.asyncio
-async def test_verify_binding_passport_missing_arg_typeerror() -> None:
-    site = LimeSite(
-        site_token="st_x",
-        base_url="http://mock/api/v1",
-        http_client=httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _: httpx.Response(404)),
-        ),
-    )
-    with pytest.raises(TypeError):
-        await site.verify_binding_passport("jwt.token")  # type: ignore[call-arg]
-    await site.aclose()
 
 
 @pytest.mark.asyncio
@@ -345,5 +308,5 @@ async def test_login_jwt_rejected_by_binding_verify(rsa_keys) -> None:
         headers={"kid": kid},
     )
     with pytest.raises(InvalidPassportError, match="audience"):
-        await verify_binding_jwt(client, login_token, expected_binding_id="br_spoof")
+        await verify_binding_jwt(client, login_token)
     await client.aclose()

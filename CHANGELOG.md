@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2026-07-19
+
+### Breaking
+
+- `LimeSite.verify_binding_passport(jwt)` no longer accepts `expected_binding_id`.
+  The SDK performs cryptographic verification only (RS256/JWKS, `aud=lime-binding`,
+  TTL ≤ 60s, non-empty `binding_id` claim). Matching `claims["binding_id"]` to your
+  pending row / `user_id` is integrator business logic.
+
+### Changed
+
+- `verify_binding_jwt` requires a non-empty `binding_id` claim after decode; it does
+  not compare the claim to a caller-supplied value.
+
+[2.0.0]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v2.0.0
+
 ## [1.2.1] - 2026-07-18
 
 ### Fixed

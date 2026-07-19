@@ -24,11 +24,7 @@ await site.verify_passport(
 
 await site.create_binding_request(*, redirect_uri: str) -> BindingRequestResult
 
-await site.verify_binding_passport(
-    jwt: str,
-    *,
-    expected_binding_id: str,
-) -> PassportVerificationResult
+await site.verify_binding_passport(jwt: str) -> PassportVerificationResult
 
 await site.aclose() -> None
 ```

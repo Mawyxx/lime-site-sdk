@@ -47,7 +47,7 @@ sequenceDiagram
 | 3 | `create_login_request()` | `await site.create_login_request()` | `LoginRequestResult` |
 | 4 | `verify_passport()` | `await site.verify_passport(jwt, *, expected_request_id=...)` | `PassportVerificationResult` |
 | 5 | `create_binding_request()` | `await site.create_binding_request(*, redirect_uri=...)` | `BindingRequestResult` |
-| 6 | `verify_binding_passport()` | `await site.verify_binding_passport(jwt, *, expected_binding_id=...)` | `PassportVerificationResult` |
+| 6 | `verify_binding_passport()` | `await site.verify_binding_passport(jwt)` | `PassportVerificationResult` |
 | 7 | `aclose()` | `await site.aclose()` | — |
 
 Full signatures: [API Reference](api.md).

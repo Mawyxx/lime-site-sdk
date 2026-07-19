@@ -221,15 +221,15 @@ async def bind_start(user_id: str) -> RedirectResponse:
 
 
 @app.get("/bind/callback")
-async def bind_callback(request: Request, binding_id: str) -> dict[str, str]:
+async def bind_callback(request: Request) -> dict[str, str]:
     passport = request.query_params["passport"]
+    # Crypto only — signature, aud, TTL, non-empty binding_id claim.
+    verified = await site.verify_binding_passport(passport)
+    binding_id = verified.claims["binding_id"]
+    # Business logic: load PENDING by claims.binding_id, enforce ownership.
     user_id = pending_bindings.pop(binding_id)
-    verified = await site.verify_binding_passport(
-        passport,
-        expected_binding_id=binding_id,
-    )
     agent_id = verified.claims["agent_id"]  # JWT sub
-    # UPSERT user_id <-> agent_id in your DB; clear pending
+    # UPSERT user_id <-> agent_id in your DB
     return {"agent_id": agent_id, "user_id": user_id}
 ```
 
@@ -238,13 +238,13 @@ async def bind_callback(request: Request, binding_id: str) -> dict[str, str]:
 | 1 | `create_binding_request(redirect_uri=…)` → `binding_id`, `connect_url` |
 | 2 | Persist `binding_id` ↔ `user_id` server-side |
 | 3 | `302` to `connect_url` (use API value as-is) |
-| 4 | Callback `?passport=` → `verify_binding_passport(..., expected_binding_id=…)` |
-| 5 | UPSERT `claims.sub` (`agent_id`); clear pending |
+| 4 | Callback `?passport=` → `verify_binding_passport(jwt)` (crypto only) |
+| 5 | Load PENDING by `claims["binding_id"]`; UPSERT `agent_id`; clear pending |
 
 | Check | Value |
 |-------|-------|
 | Audience | `aud == "lime-binding"` |
-| Claim | JWT `binding_id` must match stored id |
+| Claim | JWT must include non-empty `binding_id` (match to pending is app-owned) |
 | TTL | passport `exp - iat` ≤ **60s** |
 | Failures | raise `InvalidPassportError` (no soft `valid=False`) |
 
@@ -276,7 +276,7 @@ Construct **inside a running asyncio loop** (e.g. FastAPI lifespan, `asyncio.run
 | `await site.create_login_request()` | Start login → `LoginRequestResult` |
 | `await site.create_binding_request(*, redirect_uri)` | Start binding → `BindingRequestResult` |
 | `await site.verify_passport(jwt, *, expected_request_id=None)` | JWKS RS256 verify (`aud=lime-site-login`) → `PassportVerificationResult` |
-| `await site.verify_binding_passport(jwt, *, expected_binding_id)` | JWKS RS256 verify (`aud=lime-binding`) → `PassportVerificationResult` |
+| `await site.verify_binding_passport(jwt)` | JWKS RS256 verify (`aud=lime-binding`) → `PassportVerificationResult` |
 | `await site.aclose()` | Stop dispatcher + close HTTP client |
 
 **Constructor highlights:** `site_token` / `LIME_SITE_TOKEN`, `base_url` / `LIME_API_BASE` (default `https://lime.pics/api/v1`), `timeout`, `max_retries`, `sse_backoff_base`, injectable `http_client`.
