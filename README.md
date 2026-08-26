@@ -129,7 +129,7 @@ Bind a LIME `agent_id` to a signed-in human via Connect (`aud=lime-binding`). No
 ```python
 req = await site.create_binding_request(redirect_uri="https://yoursite.example/bind/callback")
 # persist req.binding_id ↔ user_id, redirect browser to req.connect_url
-# callback: verify_binding_passport(passport) → claims["binding_id"] / agent_id
+# callback: verify_binding_passport(passport) → claims["binding_id"] / claims["agent_id"]
 ```
 
 Example: [`examples/binding/`](examples/binding/). Details in [Read the Docs](https://lime-sites-sdk.readthedocs.io/).

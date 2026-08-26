@@ -44,7 +44,7 @@ async def main() -> None:
             expected_request_id=req.request_id,
         )
         if verified.valid:
-            agent_id = verified.claims["sub"]
+            agent_id = verified.claims["agent_id"]
             user_id = verified.claims["user_id"]
             # create YOUR session here
 

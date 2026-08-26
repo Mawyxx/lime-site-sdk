@@ -16,6 +16,7 @@ async def main() -> None:
     print("connect_url:", req.connect_url)
     # Persist binding_id ↔ user_id, redirect browser to connect_url.
     # On callback: await site.verify_binding_passport(passport)
+    # → claims["binding_id"] / claims["agent_id"]
     await site.aclose()
 
 

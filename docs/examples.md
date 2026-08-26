@@ -53,9 +53,6 @@ Maintain a correlation map keyed by `request_id`:
 ```python
 pending: dict[str, str] = {}  # request_id -> site_user_id
 
-req = await site.create_login_request()
-pending[req.request_id] = current_site_user_id
-
 @site.on_login
 async def handle(request_id: str, passport: str | None) -> None:
     site_user = pending.pop(request_id, None)
@@ -65,8 +62,11 @@ async def handle(request_id: str, passport: str | None) -> None:
         passport, expected_request_id=request_id
     )
     owner_uuid = verified.claims["user_id"]
-    agent_uuid = verified.claims["sub"]
+    agent_uuid = verified.claims["agent_id"]
     # Link site_user + owner_uuid + agent_uuid in your DB
+
+req = await site.create_login_request()
+pending[req.request_id] = current_site_user_id
 ```
 
 ## Anti-patterns
