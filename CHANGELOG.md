@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Docs / DX
+
+- README leads with site-login task + FastAPI sample; binding is secondary.
+- Added `examples/fastapi-login`, `examples/minimal-loop`, `examples/binding`.
+- RTD index: mental model first.
+
 ## [2.0.0] - 2026-07-19
 
 ### Breaking
