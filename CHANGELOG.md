@@ -11,6 +11,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## [2.0.2] - 2026-09-11
+
+### Changed
+
+- Test JWT fixtures no longer include retired gent_reputation / owner_kyc_level claims
+  (platform passport_version=5 / ADR 0105). Verification APIs unchanged.
+
+
+
 ### Docs / DX
 
 - README leads with site-login task + FastAPI sample; binding is secondary.

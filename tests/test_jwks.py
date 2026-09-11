@@ -67,8 +67,6 @@ def _sign_token(
             "exp": now + ttl,
             "request_id": request_id,
             "owner_id": "owner_1",
-            "agent_reputation": 10,
-            "passport_version": "4",
         },
         private_key,
         algorithm="RS256",
