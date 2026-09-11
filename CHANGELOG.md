@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1] - 2026-09-11
+
+### Changed
+
+- Passport claim docs/fixtures: drop retired `user_kyc_level` / `owner_kyc_level`; document `passport_version=4`.
+# Changelog
+
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
@@ -16,7 +23,7 @@ All notable changes to this project will be documented in this file.
 
 - `LimeSite.verify_binding_passport(jwt)` no longer accepts `expected_binding_id`.
   The SDK performs cryptographic verification only (RS256/JWKS, `aud=lime-binding`,
-  TTL ≤ 60s, non-empty `binding_id` claim). Matching `claims["binding_id"]` to your
+  TTL в‰¤ 60s, non-empty `binding_id` claim). Matching `claims["binding_id"]` to your
   pending row / `user_id` is integrator business logic.
 
 ### Changed
@@ -67,13 +74,13 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Auto-started `SiteEventDispatcher` — perpetual SSE listener on `GET /modules/agent-login/events` with exponential reconnect.
+- Auto-started `SiteEventDispatcher` вЂ” perpetual SSE listener on `GET /modules/agent-login/events` with exponential reconnect.
 - `on_login(handler)` decorator / registrar: `async def handler(request_id: str, passport: str | None)`.
 - `passport` is the agent JWT on `approved`; `None` on `expired`.
 
 ### Changed
 
-- SSE parsing is internal; handlers receive all site-scoped events — map `request_id` to your user session in the handler.
+- SSE parsing is internal; handlers receive all site-scoped events вЂ” map `request_id` to your user session in the handler.
 - Documented: one `LimeSite` instance per site token per process.
 
 [1.0.0]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.0.0
@@ -90,7 +97,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- README: SEO-focused rewrite — headless AI agent login, site passport JWT flow table, FastAPI + full-cycle examples with `lime-agents-sdk`, JWKS verification docs.
+- README: SEO-focused rewrite вЂ” headless AI agent login, site passport JWT flow table, FastAPI + full-cycle examples with `lime-agents-sdk`, JWKS verification docs.
 - PyPI `description` synced with README positioning.
 
 [1.0.2]: https://github.com/Mawyxx/lime-site-sdk/releases/tag/v1.0.2
+
