@@ -54,7 +54,8 @@ async def test_full_cycle_create_wait_verify(site_token: str, agent_token: str) 
         async def approve_in_background() -> None:
             await asyncio.sleep(0.5)
             async with LimeAgent(agent_token=agent_token, base_url=BASE_URL) as agent:
-                await agent.approve(req.request_id)
+                result = await agent.login(req.request_id)
+                assert result.status in ("APPROVED", "DELIVERED")
 
         approve_task = asyncio.create_task(approve_in_background())
         try:

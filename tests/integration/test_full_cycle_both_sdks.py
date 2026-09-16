@@ -44,7 +44,7 @@ async def test_full_cycle_both_sdks(tokens: tuple[str, str]) -> None:
         print(f"[Site] Created request: {request_id}")
 
         async with LimeAgent(agent_token=agent_token, base_url=BASE_URL) as agent:
-            result = await agent.approve(request_id)
+            result = await agent.login(request_id)
             assert result.status in ("APPROVED", "DELIVERED")
             print(f"[Agent] Approved: {result.status}")
 
