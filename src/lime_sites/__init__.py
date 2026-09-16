@@ -16,7 +16,7 @@ from lime_sites._types import (
     PassportVerificationResult,
 )
 
-__version__ = "2.0.1"
+__version__ = "2.0.3"
 
 __all__ = [
     "ApiError",

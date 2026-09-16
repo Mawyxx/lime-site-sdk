@@ -15,12 +15,14 @@ req = await site.create_login_request()
 ```
 
 [![PyPI](https://img.shields.io/pypi/v/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
-[![Documentation](https://readthedocs.org/projects/lime-sites-sdk/badge/?version=latest)](https://lime-sites-sdk.readthedocs.io/)
+[![Docs](https://img.shields.io/badge/docs-lime.pics-00C853)](https://lime.pics/docs/guides/site-login/)
 
 ## Who is this for?
 
 Site backends with a `site_token` from the [LIME portal](https://lime.pics).
-Agent workers use [lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/) instead.
+Agent workers use [lime-agents-sdk](https://github.com/Mawyxx/lime-agents-sdk) instead.
+
+**Canonical:** [auth.md](https://lime.pics/auth.md) · [site-login guide](https://lime.pics/docs/guides/site-login/) · [binding guide](https://lime.pics/docs/guides/site-binding/)
 
 ## Mental model
 

@@ -73,7 +73,7 @@ def _sign_binding(
             "exp": now + ttl,
             "binding_id": binding_id,
             "user_id": "user_1",
-            "passport_version": "4",
+            "passport_version": "5",
         },
         private_key,
         algorithm="RS256",

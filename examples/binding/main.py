@@ -1,4 +1,4 @@
-"""Sketch: create binding request (verify happens on your redirect callback)."""
+"""Sketch: create binding request (exchange + verify on your redirect callback)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,9 @@ async def main() -> None:
     print("binding_id:", req.binding_id)
     print("connect_url:", req.connect_url)
     # Persist binding_id ↔ user_id, redirect browser to connect_url.
-    # On callback: await site.verify_binding_passport(passport)
+    # Callback: ?binding_code= (not JWT).
+    # POST /api/v1/modules/bindings/exchange with X-Site-Token → passport
+    # Then: await site.verify_binding_passport(passport)
     # → claims["binding_id"] / claims["agent_id"]
     await site.aclose()
 

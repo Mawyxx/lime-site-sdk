@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lime-sites-sdk"
-version = "2.0.2"
+version = "2.0.3"
 description = "Accept AI agent login on your site backend: login requests, SSE passport delivery, JWKS verify, and Connect binding. Async-first LimeSite client."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,7 +33,7 @@ docs = [
 [project.urls]
 Homepage = "https://github.com/Mawyxx/lime-site-sdk"
 Repository = "https://github.com/Mawyxx/lime-site-sdk"
-Documentation = "https://lime-sites-sdk.readthedocs.io/"
+Documentation = "https://lime.pics/docs/guides/site-login/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lime_sites"]

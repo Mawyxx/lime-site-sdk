@@ -1,7 +1,7 @@
 # Quick Start
 
 Site login on **your backend**. Agent approve is
-[lime-agents-sdk](https://lime-agents-sdk.readthedocs.io/).
+[lime-agents-sdk](https://github.com/Mawyxx/lime-agents-sdk).
 
 ## Method order
 

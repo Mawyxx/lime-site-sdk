@@ -13,7 +13,7 @@ from lime_sites._types import PassportVerificationResult
 
 logger = logging.getLogger("lime")
 
-_JWKS_PATH = "/core/.well-known/jwks.json"
+_JWKS_SUFFIX = "/core/.well-known/jwks.json"
 _LOGIN_AUD = "lime-site-login"
 _BINDING_AUD = "lime-binding"
 _LOGIN_MAX_TTL_SECONDS = 120
@@ -133,6 +133,19 @@ def clear_jwks_cache() -> None:
     _key_cache.clear()
 
 
+def _jwks_path(base_url: str) -> str:
+    """Return the JWKS spec path for a base URL.
+
+    ``base_url`` may be either an origin (``https://lime.pics``) or the API root
+    including ``/api/v1`` (``https://lime.pics/api/v1``). Real Core serves JWKS at
+    ``/api/v1/core/.well-known/jwks.json``, so ensure the version prefix is present
+    exactly once regardless of which ``base_url`` spelling the integrator used.
+    """
+    if base_url.rstrip("/").endswith("/api/v1"):
+        return _JWKS_SUFFIX
+    return f"/api/v1{_JWKS_SUFFIX}"
+
+
 async def _resolve_key(client: LimeSiteClient, kid: str) -> Any:
     if kid in _key_cache:
         return _key_cache[kid]
@@ -149,7 +162,7 @@ async def _refresh_jwks(client: LimeSiteClient, *, force: bool = False) -> None:
     if force:
         _key_cache.clear()
 
-    data = await client.fetch_spec_document(_JWKS_PATH)
+    data = await client.fetch_spec_document(_jwks_path(client.base_url))
     keys = data.get("keys")
     if not isinstance(keys, list):
         raise InvalidPassportError("JWKS response missing keys array")

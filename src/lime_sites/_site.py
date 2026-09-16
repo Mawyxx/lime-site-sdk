@@ -137,7 +137,9 @@ class LimeSite:
 
         Args:
             redirect_uri: Absolute HTTPS callback URL. After the user picks an agent,
-                the portal redirects here with ``?passport=<JWT>``.
+                the portal redirects here with ``?binding_code=`` (one-time code).
+                Exchange via ``POST /api/v1/modules/bindings/exchange`` with Site Token,
+                then ``verify_binding_passport`` — never JWT in the URL.
 
         Returns:
             ``BindingRequestResult`` with ``binding_id``, ``connect_url``, ``status``,
@@ -193,7 +195,9 @@ class LimeSite:
         ``valid=False`` path.
 
         Args:
-            jwt: RS256 passport from ``?passport=`` (``aud=lime-binding``).
+            jwt: RS256 passport from binding exchange (``aud=lime-binding``).
+                Callback delivers ``?binding_code=`` only — exchange first;
+                never read JWT from the URL.
 
         Returns:
             ``PassportVerificationResult`` with ``valid=True`` and decoded ``claims``

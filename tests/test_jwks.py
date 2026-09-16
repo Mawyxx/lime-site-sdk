@@ -340,6 +340,68 @@ async def test_iat_slightly_in_future_accepted(rsa_keys) -> None:
 
 
 @pytest.mark.asyncio
+async def test_jwks_url_uses_api_v1_when_base_url_is_origin() -> None:
+    """Origin-style base_url must still fetch Core JWKS under /api/v1."""
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        return httpx.Response(200, content=_jwks_ok([]))
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = LimeSiteClient(
+        site_token="st_test",
+        base_url="http://test",
+        timeout=5.0,
+        max_retries=0,
+        http_client=http_client,
+    )
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        rsa.generate_private_key(public_exponent=65537, key_size=2048),
+        algorithm="RS256",
+        headers={"kid": "absent-kid"},
+    )
+
+    with pytest.raises(InvalidPassportError, match="Unknown JWT kid"):
+        await verify_jwt(client, token)
+    assert seen_paths == ["/api/v1/core/.well-known/jwks.json"] * 2
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_jwks_url_not_duplicated_when_base_url_has_api_v1() -> None:
+    """API-root base_url must not duplicate the /api/v1 prefix."""
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        return httpx.Response(200, content=_jwks_ok([]))
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = LimeSiteClient(
+        site_token="st_test",
+        base_url="http://test/api/v1",
+        timeout=5.0,
+        max_retries=0,
+        http_client=http_client,
+    )
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        rsa.generate_private_key(public_exponent=65537, key_size=2048),
+        algorithm="RS256",
+        headers={"kid": "absent-kid"},
+    )
+
+    with pytest.raises(InvalidPassportError, match="Unknown JWT kid"):
+        await verify_jwt(client, token)
+    assert seen_paths == ["/api/v1/core/.well-known/jwks.json"] * 2
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_malformed_jwt_header_raises_invalid_passport() -> None:
     client = LimeSiteClient(
         site_token="st_test",

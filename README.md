@@ -2,6 +2,20 @@
 
 Accept **AI agent login** on your site backend — create a request, get a Core-signed passport over SSE, verify locally with JWKS.
 
+## Canonical docs
+
+| Surface | URL |
+|---------|-----|
+| Hello (agents) | https://lime.pics/agent |
+| Auth | https://lime.pics/auth.md |
+| Flows | https://lime.pics/.well-known/agent-flows |
+| Site login guide | https://lime.pics/docs/guides/site-login/ |
+| Binding guide | https://lime.pics/docs/guides/site-binding/ |
+| Machine package | https://lime.pics/.well-known/agent-context/ |
+| GitHub | https://github.com/Mawyxx/lime-site-sdk |
+
+Prefer lime.pics + GitHub over stale RTD mirrors.
+
 ```python
 from lime_sites import LimeSite
 
@@ -15,7 +29,7 @@ async def handle_login(request_id: str, passport: str | None) -> None:
     # issue YOUR session cookie from verified.claims
 
 req = await site.create_login_request()
-# hand req.request_id to the agent worker → agent.login(request_id)
+# show req.request_id on YOUR waiting screen → agent.login(request_id)
 ```
 
 **What the SDK handles:** Site Token auth · login request · SSE passport delivery · JWKS verify · optional agent binding.
@@ -24,9 +38,8 @@ req = await site.create_login_request()
 [![Python versions](https://img.shields.io/pypi/pyversions/lime-sites-sdk)](https://pypi.org/project/lime-sites-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Mawyxx/lime-site-sdk/actions/workflows/ci.yml)
-[![Documentation](https://readthedocs.org/projects/lime-sites-sdk/badge/?version=latest)](https://lime-sites-sdk.readthedocs.io/)
 
-**Docs:** [Read the Docs](https://lime-sites-sdk.readthedocs.io/) · [lime.pics/docs](https://lime.pics/docs#guide-siteSdk) · [Platform](https://lime.pics)
+**Docs:** [lime.pics/docs](https://lime.pics/docs/) · [auth.md](https://lime.pics/auth.md) · [GitHub](https://github.com/Mawyxx/lime-site-sdk)
 
 ---
 
@@ -124,15 +137,22 @@ Site login ≠ agent binding. MCP Bearer (`aud=mcp`) is **not** verified here �
 
 ## Second scenario — Agent binding
 
-Bind a LIME `agent_id` to a signed-in human via Connect (`aud=lime-binding`). No SSE.
+**IS:** Bind a LIME `agent_id` to a signed-in human via Connect (`aud=lime-binding`). No SSE.  
+**DO:** create → redirect human to `connect_url` → callback `?binding_code=` → exchange → `verify_binding_passport`.  
+**NEVER:** JWT in redirect URL (query or fragment).
 
 ```python
 req = await site.create_binding_request(redirect_uri="https://yoursite.example/bind/callback")
 # persist req.binding_id ↔ user_id, redirect browser to req.connect_url
-# callback: verify_binding_passport(passport) → claims["binding_id"] / claims["agent_id"]
+# callback: binding_code = query["binding_code"]
+# POST /api/v1/modules/bindings/exchange with X-Site-Token + {"binding_code": ...}
+#   → data.passport, then:
+# verified = await site.verify_binding_passport(passport)
+# → claims["binding_id"] / claims["agent_id"] (sub)
 ```
 
-Example: [`examples/binding/`](examples/binding/). Details in [Read the Docs](https://lime-sites-sdk.readthedocs.io/).
+Canonical wire: [site-binding guide](https://lime.pics/docs/guides/site-binding/) · flow `agent_binding` in [agent-flows](https://lime.pics/.well-known/agent-flows).  
+Example sketch: [`examples/binding/`](examples/binding/).
 
 ---
 
@@ -182,8 +202,8 @@ Example: [`examples/minimal-loop/`](examples/minimal-loop/).
 | `create_login_request()` | Start site login → `request_id` |
 | `@site.on_login` | Handler `(request_id, passport \| None)` |
 | `verify_passport(jwt, …)` | JWKS verify `aud=lime-site-login` |
-| `create_binding_request(…)` | Start Connect binding |
-| `verify_binding_passport(jwt)` | JWKS verify `aud=lime-binding` |
+| `create_binding_request(…)` | Start Connect binding → `binding_id` + `connect_url` |
+| `verify_binding_passport(jwt)` | JWKS verify `aud=lime-binding` (after `?binding_code=` → exchange) |
 | `aclose()` | Stop SSE / close client |
 
 **Env:** `LIME_SITE_TOKEN` (required unless constructor), `LIME_API_BASE` (optional).
