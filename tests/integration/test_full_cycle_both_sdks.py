@@ -11,7 +11,7 @@ from lime_agents import LimeAgent
 
 from lime_sites import LimeSite
 
-from .bootstrap import DEFAULT_BASE_URL, ensure_tokens
+from .bootstrap import DEFAULT_BASE_URL, TokensUnavailable, ensure_tokens
 
 pytestmark = pytest.mark.integration
 
@@ -21,7 +21,10 @@ SSE_WAIT_TIMEOUT = 310.0
 
 @pytest.fixture
 async def tokens() -> tuple[str, str]:
-    return await ensure_tokens(BASE_URL)
+    try:
+        return await ensure_tokens(BASE_URL)
+    except TokensUnavailable as exc:
+        pytest.skip(str(exc))
 
 
 @pytest.mark.asyncio
