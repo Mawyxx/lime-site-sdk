@@ -2,14 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.4] - 2026-09-24
+
+### Added
+
+- `SiteAuthUnavailableError` — HTTP 503 `SITE_TOKEN_AUTH_UNAVAILABLE` now raises a typed
+  `ApiError` subclass (fail-closed) instead of a generic `ApiError`.
 
 ### Fixed
 
 - Retry policy owner: `POST` no longer blind-retries `500/502/504` (only `408/429/503`);
   `GET` keeps retrying all transient statuses.
-- HTTP 503 `SITE_TOKEN_AUTH_UNAVAILABLE` maps to typed `SiteAuthUnavailableError`
-  (subclass of `ApiError`, fail-closed) instead of a generic `ApiError`.
+
+### Tests
+
+- Regression tests for the POST/GET retry matrix and for the
+  `SITE_TOKEN_AUTH_UNAVAILABLE` → `SiteAuthUnavailableError` mapping (100% coverage).
 
 ## [2.0.3] - 2026-09-16
 
