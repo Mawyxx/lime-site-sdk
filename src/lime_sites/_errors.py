@@ -56,3 +56,7 @@ class ApiError(LimeError):
         )
 
 
+class SiteAuthUnavailableError(ApiError):
+    """HTTP 503 ``SITE_TOKEN_AUTH_UNAVAILABLE`` — auth store down (fail-closed)."""
+
+

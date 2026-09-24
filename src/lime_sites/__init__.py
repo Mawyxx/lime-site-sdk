@@ -7,6 +7,7 @@ from lime_sites._errors import (
     LimeError,
     RateLimitError,
     RequestExpiredError,
+    SiteAuthUnavailableError,
 )
 from lime_sites._site import LimeSite
 from lime_sites._types import (
@@ -30,5 +31,6 @@ __all__ = [
     "PassportVerificationResult",
     "RateLimitError",
     "RequestExpiredError",
+    "SiteAuthUnavailableError",
     "__version__",
 ]

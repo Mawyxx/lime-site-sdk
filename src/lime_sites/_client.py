@@ -9,11 +9,27 @@ from typing import Any
 
 import httpx
 
-from lime_sites._errors import ApiError, AuthenticationError, LimeError, RateLimitError
+from lime_sites._errors import (
+    ApiError,
+    AuthenticationError,
+    LimeError,
+    RateLimitError,
+    SiteAuthUnavailableError,
+)
 
 logger = logging.getLogger("lime")
 
-_RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
+_IDEMPOTENT_RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
+_NON_IDEMPOTENT_RETRYABLE_STATUS = frozenset({408, 429, 503})
+
+
+def _is_retryable_status(method: str, status: int) -> bool:
+    """Retry policy owner: never blind-retry non-idempotent methods on 500/502/504."""
+    if method == "GET":
+        return status in _IDEMPOTENT_RETRYABLE_STATUS
+    return status in _NON_IDEMPOTENT_RETRYABLE_STATUS
+
+
 _AUTH_CODES = frozenset(
     {
         "SITE_TOKEN_MISSING",
@@ -136,7 +152,7 @@ class LimeSiteClient:
                 attempt += 1
                 continue
 
-            if response.status_code in _RETRYABLE_STATUS and attempt < self._max_retries:
+            if _is_retryable_status(method, response.status_code) and attempt < self._max_retries:
                 logger.warning(
                     "Retrying %s %s after HTTP %s (attempt %s)",
                     method,
@@ -201,6 +217,14 @@ class LimeSiteClient:
 
         if status == 429 or code == "RATE_LIMIT_EXCEEDED":
             raise RateLimitError(message, code=code, http_status=status, detail=detail_dict)
+
+        if code == "SITE_TOKEN_AUTH_UNAVAILABLE":
+            raise SiteAuthUnavailableError(
+                code,
+                message,
+                http_status=status,
+                detail=detail_dict,
+            )
 
         if status == 401 or code in _AUTH_CODES:
             raise AuthenticationError(message, code=code, http_status=status, detail=detail_dict)

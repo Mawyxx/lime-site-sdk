@@ -44,7 +44,8 @@ class LimeSite:
             site_token: Opaque site secret (default from ``LIME_SITE_TOKEN`` env).
             base_url: API root including ``/api/v1`` (default ``LIME_API_BASE``).
             timeout: HTTP timeout seconds.
-            max_retries: Retries on transient 408/429/5xx responses.
+            max_retries: Retries on transient responses; ``GET`` retries
+                408/429/500/502/503/504, ``POST`` retries 408/429/503 only.
             sse_backoff_base: Base delay seconds for SSE reconnect backoff.
             http_client: Injectable ``httpx.AsyncClient`` for tests.
 
