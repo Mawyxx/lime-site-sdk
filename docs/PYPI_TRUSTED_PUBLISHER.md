@@ -1,7 +1,8 @@
 # PyPI trusted publishing (one-time setup)
 
-`lime-mcp-server-sdk` already uses GitHub → PyPI trusted publishing via `.github/workflows/publish.yml`.
-`lime-sites-sdk` needs the same publisher registered on PyPI **once**.
+`lime-sites-sdk` publishes via GitHub → PyPI trusted publishing using
+`.github/workflows/publish.yml`. The one-time publisher registration on PyPI is
+done; this document is kept as the reference for the exact field values.
 
 ## Configure on PyPI
 
@@ -17,7 +18,7 @@
 | Workflow name | `publish.yml` |
 | Environment name | `pypi` |
 
-4. Re-run the failed **Publish** workflow for tag `v1.1.0`, or push a new tag.
+4. Push a new tag (`v*`) → the **Publish** workflow runs and uploads via OIDC.
 
 ## OIDC claims (must match PyPI publisher exactly)
 
@@ -27,7 +28,7 @@ GitHub sends these claims on publish:
 repository:     Mawyxx/lime-site-sdk
 workflow:       publish.yml
 environment:    pypi
-ref:            refs/tags/v1.1.0
+ref:            refs/tags/v2.0.5
 ```
 
 **Common mistakes:**
@@ -39,20 +40,15 @@ ref:            refs/tags/v1.1.0
 | Workflow `Publish` or `ci.yml` | `publish.yml` |
 | Environment left empty | `pypi` |
 
-## Fallback: API token
+## No token fallback
 
-If trusted publishing still fails, set a repo secret and run **Publish (API token)** workflow:
-
-```bash
-gh secret set PYPI_API_TOKEN --repo Mawyxx/lime-site-sdk
-gh workflow run "Publish (API token)" --repo Mawyxx/lime-site-sdk
-```
-
-Token: PyPI → Account settings → API tokens → scope `lime-sites-sdk`.
+The API-token fallback was removed in 2.0.5: `publish-token.yml` is deleted and
+`PYPI_API_TOKEN` is revoked. If publishing fails with `invalid-publisher`, fix
+the publisher fields above — do not reintroduce a long-lived token.
 
 ## Verify
 
 ```bash
 pip index versions lime-sites-sdk
-# expect 1.1.0
+# expect 2.0.5
 ```

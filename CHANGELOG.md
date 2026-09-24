@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.5] - 2026-09-24
+
+### Changed
+
+- Releases publish through GitHub → PyPI OIDC trusted publishing only
+  (`publish.yml`, environment `pypi`, `id-token: write`); no long-lived API
+  token is stored or read.
+
+### Removed
+
+- `.github/workflows/publish-token.yml` and its `PYPI_API_TOKEN` secret
+  dependency (the PyPI API token was revoked). Publishing now fails closed if
+  the trusted publisher is misconfigured.
+
 ## [2.0.4] - 2026-09-24
 
 ### Added
