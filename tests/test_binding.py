@@ -63,12 +63,14 @@ def _sign_binding(
     binding_id: str = "br_test",
     ttl: int = 60,
     sub: str = "agent_99",
+    iss: str = "http://test",
 ) -> str:
     now = int(time.time())
     return jwt.encode(
         {
             "sub": sub,
             "aud": aud,
+            "iss": iss,
             "iat": now,
             "exp": now + ttl,
             "binding_id": binding_id,
@@ -183,7 +185,7 @@ async def test_create_binding_request_400() -> None:
 @pytest.mark.asyncio
 async def test_verify_binding_passport_success(rsa_keys) -> None:
     private_key, jwk, kid = rsa_keys
-    passport = _sign_binding(private_key, kid, binding_id="br_ok")
+    passport = _sign_binding(private_key, kid, binding_id="br_ok", iss="http://mock")
 
     def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url.path).endswith("/jwks.json"):
@@ -223,6 +225,7 @@ async def test_verify_binding_missing_binding_id_claim(rsa_keys) -> None:
         {
             "sub": "agent_1",
             "aud": "lime-binding",
+            "iss": "http://test",
             "iat": now,
             "exp": now + 60,
         },
@@ -254,6 +257,7 @@ async def test_verify_binding_expired(rsa_keys) -> None:
         {
             "sub": "agent_1",
             "aud": "lime-binding",
+            "iss": "http://test",
             "iat": now - 120,
             "exp": now - 60,
             "binding_id": "br_x",
@@ -297,6 +301,7 @@ async def test_login_jwt_rejected_by_binding_verify(rsa_keys) -> None:
         {
             "sub": "agent_1",
             "aud": "lime-site-login",
+            "iss": "http://test",
             "iat": now,
             "exp": now + 60,
             "request_id": "lr_1",

@@ -68,6 +68,7 @@ async def test_full_mock_flow_with_on_login() -> None:
         {
             "sub": "agent_1",
             "aud": "lime-site-login",
+            "iss": "http://mock",
             "iat": now,
             "exp": now + 60,
             "request_id": "lr_flow",

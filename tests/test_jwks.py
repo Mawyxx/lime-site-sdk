@@ -13,7 +13,7 @@ from jwt.algorithms import RSAAlgorithm
 
 from lime_sites._client import LimeSiteClient
 from lime_sites._errors import InvalidPassportError
-from lime_sites._jwks import clear_jwks_cache, verify_jwt
+from lime_sites._jwks import _cache_ttl_seconds, clear_jwks_cache, verify_jwt
 
 
 def _jwks_ok(jwks_keys: list[dict[str, Any]]) -> bytes:
@@ -57,17 +57,23 @@ def _sign_token(
     aud: str = "lime-site-login",
     request_id: str = "lr_test",
     ttl: int = 60,
+    iss: str = "http://test",
+    nbf: int | None = None,
 ) -> str:
     now = int(time.time())
+    payload: dict[str, Any] = {
+        "sub": "agent_123",
+        "aud": aud,
+        "iss": iss,
+        "iat": now,
+        "exp": now + ttl,
+        "request_id": request_id,
+        "owner_id": "owner_1",
+    }
+    if nbf is not None:
+        payload["nbf"] = nbf
     return jwt.encode(
-        {
-            "sub": "agent_123",
-            "aud": aud,
-            "iat": now,
-            "exp": now + ttl,
-            "request_id": request_id,
-            "owner_id": "owner_1",
-        },
+        payload,
         private_key,
         algorithm="RS256",
         headers={"kid": kid},
@@ -114,6 +120,7 @@ async def test_unknown_kid_raises_when_not_in_jwks(rsa_keys) -> None:
         {
             "sub": "a",
             "aud": "lime-site-login",
+            "iss": "http://test",
             "iat": int(time.time()),
             "exp": int(time.time()) + 60,
         },
@@ -150,6 +157,7 @@ async def test_kid_miss_triggers_jwks_refresh(rsa_keys) -> None:
         {
             "sub": "a",
             "aud": "lime-site-login",
+            "iss": "http://test",
             "iat": int(time.time()),
             "exp": int(time.time()) + 60,
         },
@@ -196,6 +204,7 @@ async def test_expired_jwt(rsa_keys) -> None:
         {
             "sub": "agent_123",
             "aud": "lime-site-login",
+            "iss": "http://test",
             "iat": now - 120,
             "exp": now - 60,
         },
@@ -237,7 +246,7 @@ async def test_missing_kid_header(rsa_keys) -> None:
     client = _make_client([jwk])
     now = int(time.time())
     token = jwt.encode(
-        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        {"sub": "a", "aud": "lime-site-login", "iss": "http://test", "iat": now, "exp": now + 60},
         private_key,
         algorithm="RS256",
     )
@@ -262,7 +271,7 @@ async def test_jwks_missing_keys_array() -> None:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     now = int(time.time())
     token = jwt.encode(
-        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        {"sub": "a", "aud": "lime-site-login", "iss": "http://test", "iat": now, "exp": now + 60},
         private_key,
         algorithm="RS256",
         headers={"kid": "any"},
@@ -278,7 +287,7 @@ async def test_missing_exp_or_iat(rsa_keys) -> None:
     private_key, jwk, kid = rsa_keys
     client = _make_client([jwk])
     token = jwt.encode(
-        {"sub": "a", "aud": "lime-site-login"},
+        {"sub": "a", "aud": "lime-site-login", "iss": "http://test"},
         private_key,
         algorithm="RS256",
         headers={"kid": kid},
@@ -326,6 +335,7 @@ async def test_iat_slightly_in_future_accepted(rsa_keys) -> None:
         {
             "sub": "agent_123",
             "aud": "lime-site-login",
+            "iss": "http://test",
             "iat": now + 5,
             "exp": now + 65,
             "request_id": "lr_skew",
@@ -358,7 +368,7 @@ async def test_jwks_url_uses_api_v1_when_base_url_is_origin() -> None:
     )
     now = int(time.time())
     token = jwt.encode(
-        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        {"sub": "a", "aud": "lime-site-login", "iss": "http://test", "iat": now, "exp": now + 60},
         rsa.generate_private_key(public_exponent=65537, key_size=2048),
         algorithm="RS256",
         headers={"kid": "absent-kid"},
@@ -389,7 +399,7 @@ async def test_jwks_url_not_duplicated_when_base_url_has_api_v1() -> None:
     )
     now = int(time.time())
     token = jwt.encode(
-        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        {"sub": "a", "aud": "lime-site-login", "iss": "http://test", "iat": now, "exp": now + 60},
         rsa.generate_private_key(public_exponent=65537, key_size=2048),
         algorithm="RS256",
         headers={"kid": "absent-kid"},
@@ -414,5 +424,118 @@ async def test_malformed_jwt_header_raises_invalid_passport() -> None:
     )
     with pytest.raises(InvalidPassportError, match="header"):
         await verify_jwt(client, "not-a-jwt")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_wrong_issuer_rejected(rsa_keys) -> None:
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    token = _sign_token(private_key, kid, iss="https://evil.tld")
+
+    with pytest.raises(InvalidPassportError, match="issuer"):
+        await verify_jwt(client, token)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_missing_issuer_rejected(rsa_keys) -> None:
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "a", "aud": "lime-site-login", "iat": now, "exp": now + 60},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+    with pytest.raises(InvalidPassportError, match="missing iss"):
+        await verify_jwt(client, token)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_future_nbf_rejected(rsa_keys) -> None:
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    token = _sign_token(private_key, kid, nbf=int(time.time()) + 600)
+
+    with pytest.raises(InvalidPassportError, match="not yet valid"):
+        await verify_jwt(client, token)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_nbf_within_clock_skew_accepted(rsa_keys) -> None:
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    token = _sign_token(private_key, kid, nbf=int(time.time()) + 5)
+
+    result = await verify_jwt(client, token, expected_request_id="lr_test")
+    assert result.valid is True
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_non_numeric_nbf_rejected(rsa_keys) -> None:
+    private_key, jwk, kid = rsa_keys
+    client = _make_client([jwk])
+    now = int(time.time())
+    token = jwt.encode(
+        {
+            "sub": "a",
+            "aud": "lime-site-login",
+            "iss": "http://test",
+            "iat": now,
+            "exp": now + 60,
+            "nbf": "soon",
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+    with pytest.raises(InvalidPassportError, match="nbf"):
+        await verify_jwt(client, token)
+    await client.aclose()
+
+
+def test_jwks_cache_ttl_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LIME_JWKS_CACHE_TTL_SECONDS", raising=False)
+    assert _cache_ttl_seconds() == 300.0
+    monkeypatch.setenv("LIME_JWKS_CACHE_TTL_SECONDS", "  ")
+    assert _cache_ttl_seconds() == 300.0
+
+
+def test_jwks_cache_ttl_invalid_value_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIME_JWKS_CACHE_TTL_SECONDS", "not-a-number")
+    with pytest.raises(InvalidPassportError, match="must be a number"):
+        _cache_ttl_seconds()
+
+
+def test_jwks_cache_ttl_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIME_JWKS_CACHE_TTL_SECONDS", "-5")
+    assert _cache_ttl_seconds() == 0.0
+    monkeypatch.setenv("LIME_JWKS_CACHE_TTL_SECONDS", "999999999")
+    assert _cache_ttl_seconds() == 86400.0
+
+
+@pytest.mark.asyncio
+async def test_jwks_cache_ttl_expiry_refetches(
+    rsa_keys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    private_key, jwk, kid = rsa_keys
+    refresh_count = [0]
+    client = _make_client([jwk], refresh_count=refresh_count)
+    token = _sign_token(private_key, kid)
+
+    await verify_jwt(client, token)
+    assert refresh_count[0] == 1
+
+    monkeypatch.setenv("LIME_JWKS_CACHE_TTL_SECONDS", "0")
+    await verify_jwt(client, token)
+    assert refresh_count[0] == 2
     await client.aclose()
 

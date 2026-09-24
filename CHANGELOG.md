@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.6] - 2026-09-24
+
+### Security
+
+- Passport verification now enforces the `iss` claim: it must match the origin
+  (scheme + host) of the configured `base_url`, so a passport issued for another
+  issuer is rejected. Missing or blank `iss` fails closed.
+- Passport verification now enforces `nbf` when present: it must be numeric and
+  no further than 30s in the future (clock-skew leeway). PyJWT's implicit `nbf`
+  check is disabled so the platform rule (and its bounded leeway) is the owner.
+- `_key_cache` entries now expire: TTL comes from
+  `LIME_JWKS_CACHE_TTL_SECONDS` (default 300s, clamped to `[0, 86400]`).
+  Invalid values fail closed; `0` refetches on every verification. Expired keys
+  trigger a JWKS refresh, and an unknown kid still forces a forced refresh.
+
 ## [2.0.5] - 2026-09-24
 
 ### Changed
